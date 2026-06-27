@@ -1,0 +1,32 @@
+{
+  "name": "@glive/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Universal SDK — shared layer between BetCat7, GLiveStreamers API, LiveKit, and the GLive Platform",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@glive/livekit": "workspace:*",
+    "axios": "^1.7.4"
+  },
+  "peerDependencies": {
+    "livekit-server-sdk": "^2.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "livekit-server-sdk": "^2.5.0"
+  }
+}
