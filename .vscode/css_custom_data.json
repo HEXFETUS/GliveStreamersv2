@@ -1,0 +1,28 @@
+{
+  "atDirectives": [
+    {
+      "name": "@tailwind",
+      "description": "Inject Tailwind's base, components, and utilities styles."
+    },
+    {
+      "name": "@apply",
+      "description": "Use any Tailwind utility class in your CSS."
+    },
+    {
+      "name": "@layer",
+      "description": "Wrap related Tailwind classes to control specificity."
+    },
+    {
+      "name": "@config",
+      "description": "Specify the path to your Tailwind config (v4+)."
+    },
+    {
+      "name": "@theme",
+      "description": "Define custom theme values (v4+)."
+    },
+    {
+      "name": "@plugin",
+      "description": "Import a Tailwind plugin (v4+)."
+    }
+  ]
+}
