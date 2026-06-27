@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { api } from '../lib/axios';
@@ -6,8 +6,10 @@ import type { Stream, StreamCategory, StreamVisibility } from '@glive/sdk';
 import {
   attachVideoTrack,
   connectToLiveKitRoom,
+  createPublisherScreenShareTrack,
   enablePublisherCamera,
   enablePublisherMicrophone,
+  publishPublisherScreenShareTrack,
   stopLocalVideoTrack,
   type LocalVideoTrack,
   type Room,
@@ -39,9 +41,12 @@ export default function DashboardPageV2() {
   const [categories, setCategories] = useState<StreamCategory[]>([]);
   const [publisherRooms, setPublisherRooms] = useState<Record<string, Room>>({});
   const [localVideoTracks, setLocalVideoTracks] = useState<Record<string, LocalVideoTrack>>({});
+  const [screenShareTracks, setScreenShareTracks] = useState<Record<string, LocalVideoTrack>>({});
   const publisherRoomsRef = useRef<Record<string, Room>>({});
   const localVideoTracksRef = useRef<Record<string, LocalVideoTrack>>({});
-  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const screenShareVideoRef = useRef<HTMLVideoElement>(null);
+  const dockedWebcamVideoRef = useRef<HTMLVideoElement>(null);
+  const screenShareTracksRef = useRef<Record<string, LocalVideoTrack>>({});
   const [busyStreamId, setBusyStreamId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -58,6 +63,8 @@ export default function DashboardPageV2() {
   const categoryOptions = categories.length > 0 ? categories : fallbackCategories;
   const liveStreams = streams.filter((stream) => stream.status === 'live');
   const activeStream = liveStreams[0] ?? streams[0] ?? null;
+  const hasActiveLocalVideo = Boolean(activeStream && localVideoTracks[activeStream.id]);
+  const hasActiveScreenShare = Boolean(activeStream && screenShareTracks[activeStream.id]);
   const totalViewers = streams.reduce((sum, stream) => sum + stream.viewer_count, 0);
   const bestPeak = streams.reduce(
     (peak, stream) => Math.max(peak, stream.peak_viewer_count),
@@ -80,6 +87,7 @@ export default function DashboardPageV2() {
     return () => {
       Object.values(publisherRoomsRef.current).forEach(disconnectFromLiveKitRoom);
       Object.values(localVideoTracksRef.current).forEach(stopLocalVideoTrack);
+      Object.values(screenShareTracksRef.current).forEach(stopLocalVideoTrack);
     };
   }, []);
 
@@ -111,8 +119,18 @@ export default function DashboardPageV2() {
     });
   };
 
+  const updateScreenShareTracks = (
+    updater: (tracks: Record<string, LocalVideoTrack>) => Record<string, LocalVideoTrack>,
+  ) => {
+    setScreenShareTracks((tracks) => {
+      const nextTracks = updater(tracks);
+      screenShareTracksRef.current = nextTracks;
+      return nextTracks;
+    });
+  };
+
   useEffect(() => {
-    const videoElement = previewVideoRef.current;
+    const videoElement = dockedWebcamVideoRef.current;
     const activeTrack = activeStream ? localVideoTracks[activeStream.id] : undefined;
 
     if (!videoElement || !activeTrack) {
@@ -126,9 +144,70 @@ export default function DashboardPageV2() {
     };
   }, [activeStream?.id, localVideoTracks]);
 
-  const startPublisherMedia = async (streamId: string, room: Room) => {
+  useEffect(() => {
+    const videoElement = screenShareVideoRef.current;
+    const activeTrack = activeStream ? screenShareTracks[activeStream.id] : undefined;
+
+    if (!videoElement || !activeTrack) {
+      return;
+    }
+
+    attachVideoTrack(activeTrack, videoElement);
+
+    return () => {
+      activeTrack.detach(videoElement);
+    };
+  }, [activeStream?.id, screenShareTracks]);
+
+  const captureScreenShareSource = async (streamId: string): Promise<LocalVideoTrack> => {
+    const screenShareTrack = await createPublisherScreenShareTrack();
+    screenShareTrack.mediaStreamTrack.addEventListener('ended', () => {
+      updateScreenShareTracks((tracks) => {
+        const nextTracks = { ...tracks };
+        if (nextTracks[streamId] === screenShareTrack) {
+          delete nextTracks[streamId];
+        }
+        return nextTracks;
+      });
+    });
+
+    updateScreenShareTracks((tracks) => {
+      stopLocalVideoTrack(tracks[streamId]);
+      return { ...tracks, [streamId]: screenShareTrack };
+    });
+
+    return screenShareTrack;
+  };
+
+  const clearScreenShareSource = (streamId: string, track?: LocalVideoTrack) => {
+    if (track) {
+      stopLocalVideoTrack(track);
+    }
+
+    updateScreenShareTracks((tracks) => {
+      const nextTracks = { ...tracks };
+      if (!track || nextTracks[streamId] === track) {
+        delete nextTracks[streamId];
+      }
+      return nextTracks;
+    });
+  };
+
+  const startPublisherMedia = async (
+    streamId: string,
+    room: Room,
+    screenShareTrack?: LocalVideoTrack,
+  ) => {
+    const sourceTrack = screenShareTrack ?? await captureScreenShareSource(streamId);
+    await publishPublisherScreenShareTrack(room, sourceTrack);
     const videoTrack = await enablePublisherCamera(room);
     await enablePublisherMicrophone(room);
+    updateScreenShareTracks((tracks) => {
+      if (tracks[streamId] && tracks[streamId] !== sourceTrack) {
+        stopLocalVideoTrack(tracks[streamId]);
+      }
+      return { ...tracks, [streamId]: sourceTrack };
+    });
     updateLocalVideoTracks((tracks) => {
       stopLocalVideoTrack(tracks[streamId]);
       return { ...tracks, [streamId]: videoTrack };
@@ -196,22 +275,31 @@ export default function DashboardPageV2() {
   const handleStart = async (streamId: string) => {
     setBusyStreamId(streamId);
     setError('');
+    let screenShareTrack: LocalVideoTrack | undefined;
     try {
+      screenShareTrack = await captureScreenShareSource(streamId);
+      const currentStream = streams.find((stream) => stream.id === streamId);
+      if (currentStream?.status === 'draft') {
+        const readyStream = await api.transitionStream(streamId, 'ready');
+        setStreams((current) => current.map((stream) => (stream.id === streamId ? readyStream : stream)));
+      }
+
       const stream = await api.startStream(streamId);
-      setStreams(streams.map((s) => (s.id === streamId ? stream : s)));
+      setStreams((current) => current.map((item) => (item.id === streamId ? stream : item)));
       try {
         const room = await connectToLiveKitRoom(stream.token, livekitURL);
         updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
-        await startPublisherMedia(streamId, room);
+        await startPublisherMedia(streamId, room, screenShareTrack);
       } catch (connectErr) {
         setError(`Stream is live, but camera/publisher connection failed: ${errorMessage(connectErr)}`);
       }
     } catch (err: unknown) {
+      clearScreenShareSource(streamId, screenShareTrack);
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { error?: string } } };
-        setError(axiosErr.response?.data?.error || 'Failed to start stream.');
+        setError(axiosErr.response?.data?.error || `Failed to start stream: ${errorMessage(err)}`);
       } else {
-        setError('Failed to start stream.');
+        setError(`Failed to start stream: ${errorMessage(err)}`);
       }
     } finally {
       setBusyStreamId(null);
@@ -248,6 +336,12 @@ export default function DashboardPageV2() {
     setBusyStreamId(streamId);
     setError('');
     try {
+      stopLocalVideoTrack(screenShareTracks[streamId]);
+      updateScreenShareTracks((tracks) => {
+        const nextTracks = { ...tracks };
+        delete nextTracks[streamId];
+        return nextTracks;
+      });
       stopLocalVideoTrack(localVideoTracks[streamId]);
       updateLocalVideoTracks((tracks) => {
         const nextTracks = { ...tracks };
@@ -272,12 +366,15 @@ export default function DashboardPageV2() {
   const handlePublisherConnect = async (streamId: string) => {
     setBusyStreamId(streamId);
     setError('');
+    let screenShareTrack: LocalVideoTrack | undefined;
     try {
+      screenShareTrack = await captureScreenShareSource(streamId);
       const { token } = await api.getPublisherToken(streamId);
       const room = await connectToLiveKitRoom(token, livekitURL);
       updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
-      await startPublisherMedia(streamId, room);
+      await startPublisherMedia(streamId, room, screenShareTrack);
     } catch (err) {
+      clearScreenShareSource(streamId, screenShareTrack);
       setError(`Failed to connect publisher room: ${errorMessage(err)}`);
     } finally {
       setBusyStreamId(null);
@@ -285,6 +382,12 @@ export default function DashboardPageV2() {
   };
 
   const handlePublisherDisconnect = (streamId: string) => {
+    stopLocalVideoTrack(screenShareTracks[streamId]);
+    updateScreenShareTracks((tracks) => {
+      const nextTracks = { ...tracks };
+      delete nextTracks[streamId];
+      return nextTracks;
+    });
     stopLocalVideoTrack(localVideoTracks[streamId]);
     updateLocalVideoTracks((tracks) => {
       const nextTracks = { ...tracks };
@@ -300,6 +403,12 @@ export default function DashboardPageV2() {
   };
 
   const disconnectPublisherRoom = (streamId: string) => {
+    stopLocalVideoTrack(screenShareTracks[streamId]);
+    updateScreenShareTracks((tracks) => {
+      const nextTracks = { ...tracks };
+      delete nextTracks[streamId];
+      return nextTracks;
+    });
     stopLocalVideoTrack(localVideoTracks[streamId]);
     updateLocalVideoTracks((tracks) => {
       const nextTracks = { ...tracks };
@@ -461,12 +570,14 @@ export default function DashboardPageV2() {
 
             <section className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.65fr)] xl:items-start">
               <Panel title="Stream Preview">
-                <div className="overflow-hidden rounded-lg border border-white/10 bg-black/35">
+                <div className="overflow-visible rounded-lg border border-white/10 bg-black/35">
                   <PreviewArt
                     thumbnailURL={activeStream?.thumbnail_url || thumbnailURL}
                     live={liveStreams.length > 0}
-                    videoRef={previewVideoRef}
-                    hasLocalVideo={Boolean(activeStream && localVideoTracks[activeStream.id])}
+                    screenShareVideoRef={screenShareVideoRef}
+                    webcamVideoRef={dockedWebcamVideoRef}
+                    hasScreenShare={hasActiveScreenShare}
+                    hasLocalVideo={hasActiveLocalVideo}
                     viewerCount={totalViewers}
                     size="large"
                   />
@@ -754,20 +865,28 @@ function AnalyticsCard({
 
 function PreviewArt({
   thumbnailURL,
-  videoRef,
+  screenShareVideoRef,
+  webcamVideoRef,
+  hasScreenShare,
   hasLocalVideo,
   viewerCount = 0,
   live,
   size = 'compact',
 }: {
   thumbnailURL?: string | null;
-  videoRef?: RefObject<HTMLVideoElement>;
+  screenShareVideoRef?: RefObject<HTMLVideoElement>;
+  webcamVideoRef?: RefObject<HTMLVideoElement>;
+  hasScreenShare?: boolean;
   hasLocalVideo?: boolean;
   viewerCount?: number;
   live: boolean;
   size?: 'compact' | 'large';
 }) {
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const webcamFrameRef = useRef<HTMLDivElement | null>(null);
+  const [webcamPosition, setWebcamPosition] = useState({ x: 68, y: 58 });
+  const [screenSharePlaying, setScreenSharePlaying] = useState(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
 
   const openFullscreen = async () => {
     const target = previewRef.current;
@@ -778,6 +897,68 @@ function PreviewArt({
     } catch {
       // Browsers can reject fullscreen if the gesture is interrupted.
     }
+  };
+
+  const openWebcamFullscreen = async () => {
+    const target = webcamFrameRef.current;
+    if (!target || !target.requestFullscreen) return;
+
+    try {
+      await target.requestFullscreen();
+    } catch {
+      // Browsers can reject fullscreen if the gesture is interrupted.
+    }
+  };
+
+  const toggleScreenSharePlayback = async () => {
+    const video = screenShareVideoRef?.current;
+    if (!video) return;
+
+    try {
+      if (video.paused) {
+        await video.play();
+        setScreenSharePlaying(true);
+      } else {
+        video.pause();
+        setScreenSharePlaying(false);
+      }
+    } catch {
+      setScreenSharePlaying(false);
+    }
+  };
+
+  const startWebcamDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const previewBox = previewRef.current?.getBoundingClientRect();
+    if (!previewBox) return;
+
+    dragOffsetRef.current = {
+      x: event.clientX - previewBox.left - webcamPosition.x,
+      y: event.clientY - previewBox.top - webcamPosition.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const dragWebcam = (event: PointerEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+
+    const previewBox = previewRef.current?.getBoundingClientRect();
+    const webcamBox = webcamFrameRef.current?.getBoundingClientRect();
+    if (!previewBox || !webcamBox) return;
+
+    const nextX = event.clientX - previewBox.left - dragOffsetRef.current.x;
+    const nextY = event.clientY - previewBox.top - dragOffsetRef.current.y;
+    setWebcamPosition({
+      x: clamp(
+        nextX,
+        -previewBox.left + 8,
+        window.innerWidth - previewBox.left - webcamBox.width - 8,
+      ),
+      y: clamp(
+        nextY,
+        -previewBox.top + 8,
+        window.innerHeight - previewBox.top - webcamBox.height - 8,
+      ),
+    });
   };
 
   if (size === 'compact') {
@@ -800,7 +981,7 @@ function PreviewArt({
   return (
     <div
       ref={previewRef}
-      className="relative aspect-video min-h-[420px] overflow-hidden bg-[#090916] xl:min-h-[560px]"
+      className="relative aspect-video min-h-[420px] overflow-visible bg-[#090916] xl:min-h-[560px]"
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_52%_38%,rgba(59,130,246,.36),transparent_24%),radial-gradient(circle_at_68%_22%,rgba(236,72,153,.48),transparent_20%),linear-gradient(135deg,rgba(85,0,100,.78),rgba(8,11,38,.96)_52%,rgba(0,18,28,.98))]" />
       <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:64px_64px]" />
@@ -812,16 +993,65 @@ function PreviewArt({
       {thumbnailURL && (
         <img src={thumbnailURL} alt="" className="absolute inset-0 h-full w-full object-cover opacity-85" />
       )}
+      {screenShareVideoRef && (
+        <video
+          ref={screenShareVideoRef}
+          autoPlay
+          muted
+          playsInline
+          onPlay={() => setScreenSharePlaying(true)}
+          onPause={() => setScreenSharePlaying(false)}
+          className={`absolute inset-0 h-full w-full object-contain bg-black ${hasScreenShare ? 'block' : 'hidden'}`}
+        />
+      )}
+      {screenShareVideoRef && hasScreenShare && (
+        <button
+          type="button"
+          onClick={toggleScreenSharePlayback}
+          className="absolute left-6 top-6 z-30 rounded-lg border border-white/15 bg-black/65 px-4 py-2 text-sm font-bold text-white shadow-[0_0_24px_rgba(0,0,0,.35)] transition hover:bg-violet-600/75"
+        >
+          {screenSharePlaying ? 'Pause' : 'Play'}
+        </button>
+      )}
+      {screenShareVideoRef && !hasScreenShare && (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-black/20 p-8 text-center">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.24em] text-cyan-200">ScreenShareMediaSource</p>
+            <p className="mt-3 text-lg font-bold text-white">Select a screen when you go live</p>
+            <p className="mt-2 text-sm text-zinc-400">
+              This is the temporary gameplay source until the BetCat7 CanvasMediaSource is added.
+            </p>
+          </div>
+        </div>
+      )}
 
-      {videoRef && (
-        <div className="absolute bottom-20 right-8 z-20 w-[min(28%,260px)] min-w-[150px] overflow-hidden rounded-lg border border-white/20 bg-black/70 shadow-[0_0_38px_rgba(0,0,0,.55)]">
-          <div className="flex items-center justify-between border-b border-white/10 bg-black/55 px-3 py-1.5">
+      {webcamVideoRef && (
+        <div
+          ref={webcamFrameRef}
+          className="absolute z-30 w-[min(30%,300px)] min-w-[170px] overflow-hidden rounded-lg border border-white/20 bg-black/75 shadow-[0_0_38px_rgba(0,0,0,.55)]"
+          style={{ left: webcamPosition.x, top: webcamPosition.y }}
+        >
+          <div
+            onPointerDown={startWebcamDrag}
+            onPointerMove={dragWebcam}
+            className="flex cursor-move touch-none items-center justify-between gap-2 border-b border-white/10 bg-black/65 px-3 py-1.5"
+          >
             <span className="text-xs font-bold text-zinc-200">Webcam</span>
-            <span className={`h-2 w-2 rounded-full ${hasLocalVideo ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${hasLocalVideo ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
+              <button
+                type="button"
+                onClick={openWebcamFullscreen}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-zinc-200 transition hover:bg-violet-600/70"
+              >
+                Full Screen
+              </button>
+            </div>
           </div>
           <div className="relative aspect-video bg-zinc-950">
             <video
-              ref={videoRef}
+              ref={webcamVideoRef}
               autoPlay
               muted
               playsInline
@@ -999,6 +1229,10 @@ function formatCategory(value: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 function initials(name?: string | null): string {

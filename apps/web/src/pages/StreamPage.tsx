@@ -31,6 +31,7 @@ export default function StreamPage() {
   const audioSinkRef = useRef<HTMLDivElement | null>(null);
   const audioElementsRef = useRef<HTMLAudioElement[]>([]);
   const trackCleanupRef = useRef<(() => void) | null>(null);
+  const activeVideoSourceRef = useRef<string | null>(null);
   const [analytics, setAnalytics] = useState<StreamAnalytics | null>(null);
   const [stream, setStream] = useState<Stream | null>(null);
   const [error, setError] = useState('');
@@ -188,6 +189,7 @@ export default function StreamPage() {
         detachRemoteTrack(activeVideoTrackRef.current, videoRef.current);
       }
       activeVideoTrackRef.current = null;
+      activeVideoSourceRef.current = null;
       setHasVideo(false);
       audioElementsRef.current.forEach((element) => {
         element.remove();
@@ -198,11 +200,17 @@ export default function StreamPage() {
 
   const attachViewerTrack = (track: RemoteTrack) => {
     if (track.kind === Track.Kind.Video && videoRef.current) {
+      const isScreenShare = track.source === Track.Source.ScreenShare;
+      if (activeVideoTrackRef.current && !isScreenShare && activeVideoSourceRef.current === Track.Source.ScreenShare) {
+        return;
+      }
+
       if (activeVideoTrackRef.current && activeVideoTrackRef.current !== track) {
         detachRemoteTrack(activeVideoTrackRef.current, videoRef.current);
       }
 
       activeVideoTrackRef.current = track as RemoteVideoTrack;
+      activeVideoSourceRef.current = track.source;
       attachRemoteVideoTrack(activeVideoTrackRef.current, videoRef.current);
       setHasVideo(true);
       return;
@@ -220,6 +228,7 @@ export default function StreamPage() {
     if (track.kind === Track.Kind.Video && activeVideoTrackRef.current === track && videoRef.current) {
       detachRemoteTrack(track, videoRef.current);
       activeVideoTrackRef.current = null;
+      activeVideoSourceRef.current = null;
       setHasVideo(false);
       return;
     }

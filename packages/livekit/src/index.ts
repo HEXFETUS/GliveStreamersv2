@@ -1,4 +1,6 @@
 import {
+  createLocalScreenTracks,
+  type LocalTrack,
   type LocalVideoTrack,
   type RemoteAudioTrack,
   type RemoteTrack,
@@ -11,6 +13,7 @@ import {
 } from 'livekit-client';
 
 export type {
+  LocalTrack,
   LocalVideoTrack,
   RemoteAudioTrack,
   RemoteTrack,
@@ -47,6 +50,38 @@ export async function enablePublisherCamera(room: Room): Promise<LocalVideoTrack
   return videoTrack;
 }
 
+export async function enablePublisherScreenShare(room: Room): Promise<LocalVideoTrack> {
+  const publication = await room.localParticipant.setScreenShareEnabled(true);
+  const videoTrack = publication?.videoTrack;
+
+  if (!videoTrack) {
+    throw new Error('Screen share was enabled, but no local video track was created.');
+  }
+
+  return videoTrack;
+}
+
+export async function createPublisherScreenShareTrack(): Promise<LocalVideoTrack> {
+  const tracks = await createLocalScreenTracks({ audio: false });
+  const videoTrack = tracks.find((track): track is LocalVideoTrack => track.kind === Track.Kind.Video);
+
+  if (!videoTrack) {
+    throw new Error('Screen share was selected, but no local video track was created.');
+  }
+
+  return videoTrack;
+}
+
+export async function publishPublisherScreenShareTrack(
+  room: Room,
+  track: LocalVideoTrack,
+): Promise<void> {
+  await room.localParticipant.publishTrack(track, {
+    name: 'screen-share',
+    source: Track.Source.ScreenShare,
+  });
+}
+
 export async function enablePublisherMicrophone(room: Room): Promise<void> {
   await room.localParticipant.setMicrophoneEnabled(true);
 }
@@ -56,8 +91,12 @@ export function attachVideoTrack(
   element: HTMLVideoElement,
 ): void {
   track.attach(element);
+  element.autoplay = true;
   element.muted = true;
   element.playsInline = true;
+  void element.play().catch(() => {
+    // Some browsers require a user gesture; the UI can still call play later.
+  });
 }
 
 export function stopLocalVideoTrack(track?: LocalVideoTrack | null): void {
