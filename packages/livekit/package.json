@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "node ../../scripts/tsc-watch.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

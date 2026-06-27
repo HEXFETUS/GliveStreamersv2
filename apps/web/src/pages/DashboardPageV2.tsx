@@ -1,9 +1,17 @@
-import { useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { api } from '../lib/axios';
 import type { Stream, StreamCategory, StreamVisibility } from '@glive/sdk';
-import { connectToLiveKitRoom, type Room } from '@glive/livekit';
+import {
+  attachVideoTrack,
+  connectToLiveKitRoom,
+  enablePublisherCamera,
+  enablePublisherMicrophone,
+  stopLocalVideoTrack,
+  type LocalVideoTrack,
+  type Room,
+} from '@glive/livekit';
 import logo from '../public/img/glivestreamers-logo.png';
 
 function disconnectFromLiveKitRoom(room?: Room | null): void {
@@ -30,7 +38,10 @@ export default function DashboardPageV2() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [categories, setCategories] = useState<StreamCategory[]>([]);
   const [publisherRooms, setPublisherRooms] = useState<Record<string, Room>>({});
+  const [localVideoTracks, setLocalVideoTracks] = useState<Record<string, LocalVideoTrack>>({});
   const publisherRoomsRef = useRef<Record<string, Room>>({});
+  const localVideoTracksRef = useRef<Record<string, LocalVideoTrack>>({});
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const [busyStreamId, setBusyStreamId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -68,6 +79,7 @@ export default function DashboardPageV2() {
   useEffect(() => {
     return () => {
       Object.values(publisherRoomsRef.current).forEach(disconnectFromLiveKitRoom);
+      Object.values(localVideoTracksRef.current).forEach(stopLocalVideoTrack);
     };
   }, []);
 
@@ -86,6 +98,40 @@ export default function DashboardPageV2() {
       const nextRooms = updater(rooms);
       publisherRoomsRef.current = nextRooms;
       return nextRooms;
+    });
+  };
+
+  const updateLocalVideoTracks = (
+    updater: (tracks: Record<string, LocalVideoTrack>) => Record<string, LocalVideoTrack>,
+  ) => {
+    setLocalVideoTracks((tracks) => {
+      const nextTracks = updater(tracks);
+      localVideoTracksRef.current = nextTracks;
+      return nextTracks;
+    });
+  };
+
+  useEffect(() => {
+    const videoElement = previewVideoRef.current;
+    const activeTrack = activeStream ? localVideoTracks[activeStream.id] : undefined;
+
+    if (!videoElement || !activeTrack) {
+      return;
+    }
+
+    attachVideoTrack(activeTrack, videoElement);
+
+    return () => {
+      activeTrack.detach(videoElement);
+    };
+  }, [activeStream?.id, localVideoTracks]);
+
+  const startPublisherMedia = async (streamId: string, room: Room) => {
+    const videoTrack = await enablePublisherCamera(room);
+    await enablePublisherMicrophone(room);
+    updateLocalVideoTracks((tracks) => {
+      stopLocalVideoTrack(tracks[streamId]);
+      return { ...tracks, [streamId]: videoTrack };
     });
   };
 
@@ -156,8 +202,9 @@ export default function DashboardPageV2() {
       try {
         const room = await connectToLiveKitRoom(stream.token, livekitURL);
         updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
+        await startPublisherMedia(streamId, room);
       } catch (connectErr) {
-        setError(`Stream is live, but publisher connection failed: ${errorMessage(connectErr)}`);
+        setError(`Stream is live, but camera/publisher connection failed: ${errorMessage(connectErr)}`);
       }
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
@@ -201,6 +248,12 @@ export default function DashboardPageV2() {
     setBusyStreamId(streamId);
     setError('');
     try {
+      stopLocalVideoTrack(localVideoTracks[streamId]);
+      updateLocalVideoTracks((tracks) => {
+        const nextTracks = { ...tracks };
+        delete nextTracks[streamId];
+        return nextTracks;
+      });
       disconnectFromLiveKitRoom(publisherRooms[streamId]);
       updatePublisherRooms((rooms) => {
         const nextRooms = { ...rooms };
@@ -223,6 +276,7 @@ export default function DashboardPageV2() {
       const { token } = await api.getPublisherToken(streamId);
       const room = await connectToLiveKitRoom(token, livekitURL);
       updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
+      await startPublisherMedia(streamId, room);
     } catch (err) {
       setError(`Failed to connect publisher room: ${errorMessage(err)}`);
     } finally {
@@ -231,6 +285,12 @@ export default function DashboardPageV2() {
   };
 
   const handlePublisherDisconnect = (streamId: string) => {
+    stopLocalVideoTrack(localVideoTracks[streamId]);
+    updateLocalVideoTracks((tracks) => {
+      const nextTracks = { ...tracks };
+      delete nextTracks[streamId];
+      return nextTracks;
+    });
     disconnectFromLiveKitRoom(publisherRooms[streamId]);
     updatePublisherRooms((rooms) => {
       const nextRooms = { ...rooms };
@@ -240,6 +300,12 @@ export default function DashboardPageV2() {
   };
 
   const disconnectPublisherRoom = (streamId: string) => {
+    stopLocalVideoTrack(localVideoTracks[streamId]);
+    updateLocalVideoTracks((tracks) => {
+      const nextTracks = { ...tracks };
+      delete nextTracks[streamId];
+      return nextTracks;
+    });
     disconnectFromLiveKitRoom(publisherRooms[streamId]);
     updatePublisherRooms((rooms) => {
       const nextRooms = { ...rooms };
@@ -399,6 +465,9 @@ export default function DashboardPageV2() {
                   <PreviewArt
                     thumbnailURL={activeStream?.thumbnail_url || thumbnailURL}
                     live={liveStreams.length > 0}
+                    videoRef={previewVideoRef}
+                    hasLocalVideo={Boolean(activeStream && localVideoTracks[activeStream.id])}
+                    viewerCount={totalViewers}
                     size="large"
                   />
                   <div className="flex items-center justify-between gap-4 p-4">
@@ -685,10 +754,16 @@ function AnalyticsCard({
 
 function PreviewArt({
   thumbnailURL,
+  videoRef,
+  hasLocalVideo,
+  viewerCount = 0,
   live,
   size = 'compact',
 }: {
   thumbnailURL?: string | null;
+  videoRef?: RefObject<HTMLVideoElement>;
+  hasLocalVideo?: boolean;
+  viewerCount?: number;
   live: boolean;
   size?: 'compact' | 'large';
 }) {
@@ -705,27 +780,76 @@ function PreviewArt({
     }
   };
 
+  if (size === 'compact') {
+    return (
+      <div className="relative aspect-[16/7] overflow-hidden bg-gradient-to-br from-fuchsia-950 via-violet-950 to-cyan-950">
+        {thumbnailURL ? (
+          <img src={thumbnailURL} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_68%_22%,rgba(236,72,153,.45),transparent_18%),radial-gradient(circle_at_30%_58%,rgba(34,211,238,.28),transparent_24%),linear-gradient(135deg,rgba(0,0,0,.10),rgba(0,0,0,.66))]" />
+            <div className="absolute bottom-8 left-8 h-24 w-44 rounded-lg border border-cyan-300/20 bg-black/30 shadow-[0_0_60px_rgba(34,211,238,.2)]" />
+            <div className="absolute right-8 top-8 h-28 w-36 rounded-lg border border-fuchsia-300/20 bg-black/20 shadow-[0_0_70px_rgba(217,70,239,.22)]" />
+          </>
+        )}
+        {live && <span className="absolute left-4 top-4 rounded bg-red-600 px-3 py-1 text-xs font-black">LIVE</span>}
+      </div>
+    );
+  }
+
   return (
     <div
       ref={previewRef}
-      className={`relative overflow-hidden bg-gradient-to-br from-fuchsia-950 via-violet-950 to-cyan-950 ${
-        size === 'large' ? 'aspect-video min-h-[420px] xl:min-h-[560px]' : 'aspect-[16/7]'
-      }`}
+      className="relative aspect-video min-h-[420px] overflow-hidden bg-[#090916] xl:min-h-[560px]"
     >
-      {thumbnailURL ? (
-        <img src={thumbnailURL} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_68%_22%,rgba(236,72,153,.45),transparent_18%),radial-gradient(circle_at_30%_58%,rgba(34,211,238,.28),transparent_24%),linear-gradient(135deg,rgba(0,0,0,.10),rgba(0,0,0,.66))]" />
-          <div className="absolute bottom-8 left-8 h-24 w-44 rounded-lg border border-cyan-300/20 bg-black/30 shadow-[0_0_60px_rgba(34,211,238,.2)]" />
-          <div className="absolute right-8 top-8 h-28 w-36 rounded-lg border border-fuchsia-300/20 bg-black/20 shadow-[0_0_70px_rgba(217,70,239,.22)]" />
-        </>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_52%_38%,rgba(59,130,246,.36),transparent_24%),radial-gradient(circle_at_68%_22%,rgba(236,72,153,.48),transparent_20%),linear-gradient(135deg,rgba(85,0,100,.78),rgba(8,11,38,.96)_52%,rgba(0,18,28,.98))]" />
+      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:64px_64px]" />
+      <div className="absolute left-8 top-8 rounded-md border border-white/10 bg-black/35 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
+        Gameplay
+      </div>
+      <div className="absolute left-10 top-24 h-24 w-40 rounded-lg border border-cyan-300/20 bg-cyan-950/20 shadow-[0_0_60px_rgba(34,211,238,.16)]" />
+      <div className="absolute bottom-28 left-[24%] h-28 w-56 rounded-lg border border-violet-300/15 bg-violet-950/20 shadow-[0_0_70px_rgba(168,85,247,.18)]" />
+      {thumbnailURL && (
+        <img src={thumbnailURL} alt="" className="absolute inset-0 h-full w-full object-cover opacity-85" />
       )}
-      {live && <span className="absolute left-4 top-4 rounded bg-red-600 px-3 py-1 text-xs font-black">LIVE</span>}
+
+      {videoRef && (
+        <div className="absolute bottom-20 right-8 z-20 w-[min(28%,260px)] min-w-[150px] overflow-hidden rounded-lg border border-white/20 bg-black/70 shadow-[0_0_38px_rgba(0,0,0,.55)]">
+          <div className="flex items-center justify-between border-b border-white/10 bg-black/55 px-3 py-1.5">
+            <span className="text-xs font-bold text-zinc-200">Webcam</span>
+            <span className={`h-2 w-2 rounded-full ${hasLocalVideo ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
+          </div>
+          <div className="relative aspect-video bg-zinc-950">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`absolute inset-0 h-full w-full object-cover ${hasLocalVideo ? 'block' : 'hidden'}`}
+            />
+            {!hasLocalVideo && (
+              <div className="grid h-full place-items-center text-xs font-semibold text-zinc-500">
+                Camera standby
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center gap-4 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-6 py-5">
+        <span className={`rounded px-3 py-1 text-xs font-black ${live ? 'bg-red-600 text-white' : 'bg-white/10 text-zinc-300'}`}>
+          {live ? 'LIVE' : 'OFFLINE'}
+        </span>
+        <span className="rounded-full bg-black/45 px-3 py-1 text-sm font-bold text-zinc-100">
+          Viewers {viewerCount}
+        </span>
+        <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-sm font-bold text-fuchsia-100 shadow-[0_0_24px_rgba(217,70,239,.22)]">
+          Gift Animation
+        </span>
+      </div>
       <button
         type="button"
         onClick={openFullscreen}
-        className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-xl border border-white/15 bg-black/60 p-2 text-white shadow-[0_0_24px_rgba(124,58,237,.3)] transition hover:bg-violet-600/70"
+        className="absolute right-4 top-4 z-20 grid h-12 w-12 place-items-center rounded-xl border border-white/15 bg-black/60 p-2 text-white shadow-[0_0_24px_rgba(124,58,237,.3)] transition hover:bg-violet-600/70"
         aria-label="Open stream preview fullscreen"
       >
         <img src={logo} alt="" className="h-full w-full rounded-md object-cover" />

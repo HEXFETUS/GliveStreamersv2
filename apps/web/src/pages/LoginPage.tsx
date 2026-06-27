@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import logo from '../public/img/glivestreamers-logo.png';
+import glogo from '../public/img/Glogo.png'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -44,7 +45,7 @@ export default function LoginPage() {
               <img
                 src={logo}
                 alt="GLiveStreamers"
-                className="h-16 w-52 rounded-lg object-cover object-center shadow-[0_0_35px_rgba(217,70,239,0.55)]"
+                className="h-16 w-52 rounded-lg object-contain shadow-[0_0_35px_rgba(217,70,239,0.55)]"
               />
               <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold shadow-[0_0_30px_rgba(14,165,233,0.18)] backdrop-blur">
                 <span className="mr-2 inline-block h-3 w-3 rounded-full bg-red-500 shadow-[0_0_18px_rgba(239,68,68,0.95)]" />
@@ -83,7 +84,7 @@ export default function LoginPage() {
         <section className="flex items-center justify-center pb-6 lg:pb-0">
           <div className="w-full max-w-xl rounded-[2rem] border border-cyan-300/30 bg-slate-950/58 p-6 shadow-[0_0_55px_rgba(14,165,233,0.24),0_0_90px_rgba(236,72,153,0.18)] backdrop-blur-2xl md:p-10">
             <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border border-fuchsia-400/70 bg-black/60 p-2 shadow-[0_0_35px_rgba(236,72,153,0.65)]">
-              <img src={logo} alt="" className="h-full w-full rounded-full object-cover object-left" />
+              <img src={glogo} alt="" className="h-full w-full rounded-full object-contain" />
             </div>
 
             <div className="mt-7 text-center">

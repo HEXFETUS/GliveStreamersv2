@@ -3,7 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
-import HomePage from './pages/HomePage';
+import HomePage from './pages/HomePageV2';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPageV2';
