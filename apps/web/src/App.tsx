@@ -1,16 +1,20 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
+import DashboardPage from './pages/DashboardPageV2';
 import StreamPage from './pages/StreamPage';
 
 export default function App() {
   const { isInitialized, restoreSession } = useAuthStore();
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isLandingPage = location.pathname === '/';
+  const isDashboardPage = location.pathname === '/dashboard';
 
   useEffect(() => {
     if (!isInitialized) {
@@ -20,7 +24,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <Navbar />
+      {!isAuthPage && !isLandingPage && !isDashboardPage && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
