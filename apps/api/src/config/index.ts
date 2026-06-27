@@ -1,5 +1,11 @@
 import 'dotenv/config';
 
+function normalizeLiveKitHost(value: string): string {
+  return value.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
+}
+
+const livekitHost = process.env.LIVEKIT_HOST || process.env.LIVEKIT_URL || '';
+
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -19,6 +25,6 @@ export const config = {
   livekit: {
     apiKey: process.env.LIVEKIT_API_KEY || '',
     apiSecret: process.env.LIVEKIT_API_SECRET || '',
-    host: process.env.LIVEKIT_HOST || '',
+    host: normalizeLiveKitHost(livekitHost),
   },
 };

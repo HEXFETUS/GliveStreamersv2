@@ -26,11 +26,11 @@ export function isLiveKitConfigured(): boolean {
   );
 }
 
-export function createLiveKitToken(
+export async function createLiveKitToken(
   identity: string,
   room: string,
   options?: CreateLiveKitTokenOptions,
-) {
+): Promise<string> {
   const at = new AccessToken(config.livekit.apiKey, config.livekit.apiSecret, {
     identity,
     ttl: '1h',

@@ -273,7 +273,7 @@ router.post('/', authenticate, validate(createStreamSchema), async (req, res) =>
         .eq('user_id', userId);
     }
 
-    const token = createLiveKitToken(publisherIdentity(userId), roomName, {
+    const token = await createLiveKitToken(publisherIdentity(userId), roomName, {
       canPublish: true,
       canSubscribe: true,
     });
@@ -363,7 +363,7 @@ router.get('/:streamId/token', async (req, res) => {
 
     const identity = user ? `viewer_${user.sub}` : viewerIdentity();
 
-    const token = createLiveKitToken(identity, stream.livekit_room_name, {
+    const token = await createLiveKitToken(identity, stream.livekit_room_name, {
       canPublish: false,
       canSubscribe: true,
     });
@@ -411,7 +411,7 @@ router.post('/:streamId/publisher-token', authenticate, async (req, res) => {
     });
 
     const identity = publisherIdentity(req.user!.sub);
-    const token = createLiveKitToken(identity, stream.livekit_room_name, {
+    const token = await createLiveKitToken(identity, stream.livekit_room_name, {
       canPublish: true,
       canSubscribe: true,
     });
@@ -776,7 +776,7 @@ router.post('/:streamId/start', authenticate, async (req, res) => {
       return;
     }
 
-    const token = createLiveKitToken(
+    const token = await createLiveKitToken(
       publisherIdentity(req.user!.sub),
       stream.livekit_room_name,
       {

@@ -153,10 +153,19 @@ export default function DashboardPageV2() {
     try {
       const stream = await api.startStream(streamId);
       setStreams(streams.map((s) => (s.id === streamId ? stream : s)));
-      const room = await connectToLiveKitRoom(stream.token, livekitURL);
-      updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
-    } catch {
-      setError('Failed to start and connect publisher room.');
+      try {
+        const room = await connectToLiveKitRoom(stream.token, livekitURL);
+        updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
+      } catch (connectErr) {
+        setError(`Stream is live, but publisher connection failed: ${errorMessage(connectErr)}`);
+      }
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: string } } };
+        setError(axiosErr.response?.data?.error || 'Failed to start stream.');
+      } else {
+        setError('Failed to start stream.');
+      }
     } finally {
       setBusyStreamId(null);
     }
@@ -214,8 +223,8 @@ export default function DashboardPageV2() {
       const { token } = await api.getPublisherToken(streamId);
       const room = await connectToLiveKitRoom(token, livekitURL);
       updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
-    } catch {
-      setError('Failed to connect publisher room.');
+    } catch (err) {
+      setError(`Failed to connect publisher room: ${errorMessage(err)}`);
     } finally {
       setBusyStreamId(null);
     }
@@ -876,4 +885,16 @@ function initials(name?: string | null): string {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join('');
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+
+  if (typeof err === 'string') {
+    return err;
+  }
+
+  return 'Unknown LiveKit connection error';
 }
