@@ -284,7 +284,7 @@ export default function DashboardPage() {
         <aside className="flex flex-col border-b border-white/10 bg-[#060914] px-5 py-7 lg:min-h-screen lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-3">
             <img src="/img/Glogo.png" alt="GameLive" className="h-10 w-10 rounded-xl object-contain" />
-            <span className="text-xl font-bold">GameLive</span>
+            <span className="text-xl font-bold">GLiveStreamers</span>
           </div>
 
           <nav className="mt-9 grid gap-2 border-t border-white/10 pt-3">
