@@ -13,10 +13,22 @@ interface LiveKitRoomMetadata {
 }
 
 export const roomService = new RoomServiceClient(
-  config.livekit.host,
+  liveKitApiHost(config.livekit.host),
   config.livekit.apiKey,
   config.livekit.apiSecret,
 );
+
+function liveKitApiHost(host: string) {
+  if (host.startsWith('wss://')) {
+    return `https://${host.slice('wss://'.length)}`;
+  }
+
+  if (host.startsWith('ws://')) {
+    return `http://${host.slice('ws://'.length)}`;
+  }
+
+  return host;
+}
 
 export function isLiveKitConfigured(): boolean {
   return Boolean(

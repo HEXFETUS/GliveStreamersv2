@@ -142,12 +142,25 @@ export default function DashboardPage() {
   const handleStart = async (streamId: string) => {
     setBusyStreamId(streamId);
     setError('');
+    let started = false;
     try {
       const stream = await api.startStream(streamId);
+      started = true;
       setStreams(streams.map((s) => (s.id === streamId ? stream : s)));
       const room = await connectToLiveKitRoom(stream.token, livekitURL);
+      const liveStream = await api.transitionStream(streamId, 'live');
+      setStreams(streams.map((s) => (s.id === streamId ? liveStream : s)));
       updatePublisherRooms((rooms) => ({ ...rooms, [streamId]: room }));
-    } catch {
+    } catch (err) {
+      console.error('Start publisher room failed:', err);
+      if (started) {
+        try {
+          const readyStream = await api.transitionStream(streamId, 'ready');
+          setStreams(streams.map((s) => (s.id === streamId ? readyStream : s)));
+        } catch (rollbackErr) {
+          console.error('Failed to roll stream back to ready:', rollbackErr);
+        }
+      }
       setError('Failed to start and connect publisher room.');
     } finally {
       setBusyStreamId(null);
