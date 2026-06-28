@@ -28,7 +28,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="flex items-center justify-center min-h-[80vh] px-4">
+    <main className="relative flex items-center justify-center min-h-[80vh] px-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm flex flex-col gap-4"
@@ -85,6 +85,13 @@ export default function RegisterPage() {
             Log in
           </Link>
         </p>
+
+        <Link
+          to="/"
+          className="text-center text-sm font-medium text-purple-400 transition-colors hover:text-purple-300 hover:underline"
+        >
+          Back to homepage
+        </Link>
       </form>
     </main>
   );
