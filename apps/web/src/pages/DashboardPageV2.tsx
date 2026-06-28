@@ -830,6 +830,33 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+const viewerInteractionStats = [
+  { label: 'Gifts', value: '18', tint: 'from-fuchsia-500/18 to-white/[0.03]' },
+  { label: 'Tokens', value: '2.4K', tint: 'from-amber-400/18 to-white/[0.03]' },
+  { label: 'Chats', value: '126', tint: 'from-cyan-400/18 to-white/[0.03]' },
+];
+
+const viewerInteractionComments = [
+  {
+    name: 'AceViewer',
+    body: 'Nice round, keep going!',
+    badge: 'Gift',
+    badgeClass: 'bg-fuchsia-500/20 text-fuchsia-200',
+  },
+  {
+    name: 'BetCatFan',
+    body: '+250 tokens sent',
+    badge: 'Token',
+    badgeClass: 'bg-amber-400/20 text-amber-200',
+  },
+  {
+    name: 'Mika',
+    body: 'Camera is clear on my side.',
+    badge: 'Chat',
+    badgeClass: 'bg-cyan-400/20 text-cyan-200',
+  },
+];
+
 function AnalyticsCard({
   label,
   value,
@@ -886,6 +913,8 @@ function PreviewArt({
   const webcamFrameRef = useRef<HTMLDivElement | null>(null);
   const [webcamPosition, setWebcamPosition] = useState({ x: 68, y: 58 });
   const [screenSharePlaying, setScreenSharePlaying] = useState(false);
+  const [webcamFullscreen, setWebcamFullscreen] = useState(false);
+  const [webcamMinimized, setWebcamMinimized] = useState(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
 
   const openFullscreen = async () => {
@@ -904,11 +933,21 @@ function PreviewArt({
     if (!target || !target.requestFullscreen) return;
 
     try {
+      setWebcamMinimized(false);
       await target.requestFullscreen();
     } catch {
       // Browsers can reject fullscreen if the gesture is interrupted.
     }
   };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setWebcamFullscreen(document.fullscreenElement === webcamFrameRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const toggleScreenSharePlayback = async () => {
     const video = screenShareVideoRef?.current;
@@ -1028,7 +1067,7 @@ function PreviewArt({
       {webcamVideoRef && (
         <div
           ref={webcamFrameRef}
-          className="absolute z-30 w-[min(30%,300px)] min-w-[170px] overflow-hidden rounded-lg border border-white/20 bg-black/75 shadow-[0_0_38px_rgba(0,0,0,.55)]"
+          className={`absolute z-30 overflow-hidden rounded-lg border border-white/20 bg-black/80 shadow-[0_0_38px_rgba(0,0,0,.55)] ${webcamMinimized ? 'w-64 min-w-0' : 'w-[min(34%,360px)] min-w-[230px]'} ${webcamFullscreen ? '!static !h-screen !w-screen !max-w-none !rounded-none !border-0 !bg-[#050509] !shadow-none' : ''}`}
           style={{ left: webcamPosition.x, top: webcamPosition.y }}
         >
           <div
@@ -1039,6 +1078,25 @@ function PreviewArt({
             <span className="text-xs font-bold text-zinc-200">Webcam</span>
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${hasLocalVideo ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
+              {webcamMinimized ? (
+                <button
+                  type="button"
+                  onClick={() => setWebcamMinimized(false)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  className="rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-zinc-200 transition hover:bg-white/10"
+                >
+                  Restore
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setWebcamMinimized(true)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  className="rounded border border-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-zinc-200 transition hover:bg-white/10"
+                >
+                  Minimize
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openWebcamFullscreen}
@@ -1049,20 +1107,48 @@ function PreviewArt({
               </button>
             </div>
           </div>
-          <div className="relative aspect-video bg-zinc-950">
-            <video
-              ref={webcamVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className={`absolute inset-0 h-full w-full object-cover ${hasLocalVideo ? 'block' : 'hidden'}`}
-            />
-            {!hasLocalVideo && (
-              <div className="grid h-full place-items-center text-xs font-semibold text-zinc-500">
-                Camera standby
+          {!webcamMinimized && (
+            <div className={webcamFullscreen ? 'grid h-[calc(100vh-38px)] min-h-0 grid-cols-[minmax(0,1fr)_360px]' : ''}>
+              <div className={`relative bg-zinc-950 ${webcamFullscreen ? 'h-full' : 'aspect-video'}`}>
+                <video
+                  ref={webcamVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className={`absolute inset-0 h-full w-full object-cover ${hasLocalVideo ? 'block' : 'hidden'}`}
+                />
+                {!hasLocalVideo && (
+                  <div className="grid h-full place-items-center text-xs font-semibold text-zinc-500">
+                    Camera standby
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+              <div className={`border-white/10 bg-zinc-950/95 p-3 ${webcamFullscreen ? 'overflow-y-auto border-l p-5' : 'border-t'}`}>
+                <div className="grid grid-cols-3 gap-2">
+                  {viewerInteractionStats.map((item) => (
+                    <div key={item.label} className={`rounded-md border border-white/10 bg-gradient-to-br ${item.tint} p-2`}>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">{item.label}</p>
+                      <p className="mt-1 text-sm font-black text-white">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {viewerInteractionComments.map((comment) => (
+                    <div key={`${comment.name}-${comment.body}`} className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-bold text-zinc-100">{comment.name}</span>
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black ${comment.badgeClass}`}>
+                          {comment.badge}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-zinc-300">{comment.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center gap-4 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-6 py-5">
