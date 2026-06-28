@@ -70,7 +70,7 @@ const lifecycleTransitions: Record<
   StreamLifecycleAction,
   { from: StreamStatus[]; to: StreamStatus }
 > = {
-  ready: { from: ['draft'], to: 'ready' },
+  ready: { from: ['draft', 'starting'], to: 'ready' },
   start: { from: ['ready', 'ended'], to: 'starting' },
   live: { from: ['starting'], to: 'live' },
   end: { from: ['live'], to: 'ending' },
@@ -490,7 +490,19 @@ router.post(
         updates.viewer_count = 0;
         updates.peak_viewer_count = 0;
         updates.duration_seconds = 0;
-        updates.started_at = now;
+        updates.started_at = null;
+        updates.ended_at = null;
+      }
+
+      if (nextStatus === 'ready') {
+        updates.is_live = false;
+        updates.started_at = null;
+        updates.ended_at = null;
+      }
+
+      if (nextStatus === 'live') {
+        updates.is_live = true;
+        updates.started_at = existingStream.started_at ?? now;
         updates.ended_at = null;
       }
 
@@ -755,12 +767,12 @@ router.post('/:streamId/start', authenticate, async (req, res) => {
     const { data: stream, error } = await supabase
       .from('streams')
       .update({
-        status: 'live',
-        is_live: true,
+        status: 'starting',
+        is_live: false,
         viewer_count: 0,
         peak_viewer_count: 0,
         duration_seconds: 0,
-        started_at: new Date().toISOString(),
+        started_at: null,
         ended_at: null,
         livekit_room_created_at: roomCreated
           ? (existingStream.livekit_room_created_at ?? new Date().toISOString())
