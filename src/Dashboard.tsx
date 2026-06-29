@@ -31,6 +31,14 @@ type FloatingReaction = {
   duration: number
 }
 
+type DanceAnimation = {
+  key: number
+  danceType: string
+  emoji: string
+  left: number
+  createdAt: number
+}
+
 type User = {
   id: string
   email: string
@@ -47,6 +55,7 @@ function Dashboard({ user, onLogout }: DashboardProps) {
   const frameRef = useRef<HTMLDivElement | null>(null)
   const reactionId = useRef(0)
   const remoteReactionId = useRef(0)
+  const danceId = useRef(0)
 
   const [isLive, setIsLive] = useState(false)
   const [cameraOn, setCameraOn] = useState(true)
@@ -55,6 +64,7 @@ function Dashboard({ user, onLogout }: DashboardProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
   const [remoteReactions, setRemoteReactions] = useState<FloatingReaction[]>([])
+  const [danceAnimations, setDanceAnimations] = useState<DanceAnimation[]>([])
   const [lkToken, setLkToken] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
 
@@ -146,6 +156,21 @@ function Dashboard({ user, onLogout }: DashboardProps) {
     }, 3400)
   }, [])
 
+  const addDanceAnimation = useCallback((danceType: string, emoji: string) => {
+    const key = danceId.current++
+    const newDance: DanceAnimation = {
+      key,
+      danceType,
+      emoji,
+      left: 10 + Math.random() * 60,
+      createdAt: Date.now(),
+    }
+    setDanceAnimations((prev) => [...prev, newDance])
+    window.setTimeout(() => {
+      setDanceAnimations((prev) => prev.filter((d) => d.key !== key))
+    }, 3500)
+  }, [])
+
   return (
     <main className="dashboard">
       <aside className="sidebar" aria-label="Stream controls">
@@ -199,7 +224,7 @@ function Dashboard({ user, onLogout }: DashboardProps) {
               >
                 <LiveControls />
                 <LocalVideo />
-                <ReactionListener addRemoteReaction={addRemoteReaction} />
+                <ReactionListener addRemoteReaction={addRemoteReaction} onDance={addDanceAnimation} />
               </LiveKitRoom>
             ) : (
               <div className="preview-noise"></div>
@@ -231,6 +256,15 @@ function Dashboard({ user, onLogout }: DashboardProps) {
               {remoteReactions.map((reaction) => (
                 <span key={reaction.key} className="floating-reaction" style={{ left: `${reaction.left}%`, animationDuration: `${reaction.duration}ms` }}>
                   {reaction.emoji}
+                </span>
+              ))}
+              {danceAnimations.map((dance) => (
+                <span
+                  key={dance.key}
+                  className={`dance-emoji dance-${dance.danceType}`}
+                  style={{ left: `${dance.left}%` }}
+                >
+                  {dance.emoji}
                 </span>
               ))}
             </div>
@@ -273,11 +307,13 @@ function Dashboard({ user, onLogout }: DashboardProps) {
  * Uses useRoomContext() (provided by LiveKitRoom context) with useConnectionState()
  * to only register the listener when the room is fully connected.
  */
-function ReactionListener({ addRemoteReaction }: { addRemoteReaction: (emoji: string) => void }) {
+function ReactionListener({ addRemoteReaction, onDance }: { addRemoteReaction: (emoji: string) => void; onDance: (danceType: string, emoji: string) => void }) {
   const room = useRoomContext()
   const connectionState = useConnectionState()
-  const callbackRef = useRef(addRemoteReaction)
-  callbackRef.current = addRemoteReaction
+  const reactionCallbackRef = useRef(addRemoteReaction)
+  const danceCallbackRef = useRef(onDance)
+  reactionCallbackRef.current = addRemoteReaction
+  danceCallbackRef.current = onDance
 
   useEffect(() => {
     if (connectionState !== ConnectionState.Connected) {
@@ -297,7 +333,10 @@ function ReactionListener({ addRemoteReaction }: { addRemoteReaction: (emoji: st
         const msg = JSON.parse(new TextDecoder().decode(payload))
         console.log('[ReactionListener] received:', msg, 'from:', participant?.identity)
         if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
-          callbackRef.current(msg.emoji)
+          reactionCallbackRef.current(msg.emoji)
+        }
+        if (msg?.type === 'dance' && typeof msg.danceType === 'string' && typeof msg.emoji === 'string') {
+          danceCallbackRef.current(msg.danceType, msg.emoji)
         }
       } catch { /* ignore */ }
     }

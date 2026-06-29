@@ -939,6 +939,163 @@ button.danger {
   background: rgba(16, 24, 40, 0.95);
 }
 
+/* ---------- Dance animations (viewer → streamer) ---------- */
+.dance-emoji {
+  position: absolute;
+  bottom: 76px;
+  font-size: 56px;
+  line-height: 1;
+  will-change: transform, opacity;
+  animation-fill-mode: forwards;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.dance-dance1 {
+  animation: dance-spin 3s ease-out forwards;
+}
+
+.dance-dance2 {
+  animation: dance-bounce 3s ease-out forwards;
+}
+
+.dance-dance3 {
+  animation: dance-wave 3s ease-out forwards;
+}
+
+@keyframes dance-spin {
+  0% {
+    transform: translateY(0) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(-10px) scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
+  40% {
+    transform: translateY(-60px) scale(1) rotate(360deg);
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(-120px) scale(0.9) rotate(720deg);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-200px) scale(0.5) rotate(1080deg);
+    opacity: 0;
+  }
+}
+
+@keyframes dance-bounce {
+  0% {
+    transform: translateY(0) scale(0.3);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(-80px) scale(1.1);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(0) scale(0.85);
+  }
+  40% {
+    transform: translateY(-60px) scale(1);
+  }
+  55% {
+    transform: translateY(0) scale(0.9);
+  }
+  70% {
+    transform: translateY(-40px) scale(0.95);
+    opacity: 0.7;
+  }
+  85% {
+    transform: translateY(-10px) scale(0.85);
+  }
+  100% {
+    transform: translateY(-60px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes dance-wave {
+  0% {
+    transform: translateY(0) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(-10px) scale(1.2) rotate(-15deg);
+    opacity: 1;
+  }
+  30% {
+    transform: translateY(-40px) scale(1) rotate(15deg);
+  }
+  50% {
+    transform: translateY(-70px) scale(0.9) rotate(-20deg);
+  }
+  70% {
+    transform: translateY(-110px) scale(0.85) rotate(20deg);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-180px) scale(0.5) rotate(-25deg);
+    opacity: 0;
+  }
+}
+
+.dance-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.55);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+}
+
+.dance-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.12s ease, background 0.12s ease;
+  cursor: pointer;
+  border: 0;
+}
+
+.dance-button:hover {
+  filter: none;
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-3px) scale(1.08);
+}
+
+.dance-button:active {
+  transform: translateY(0) scale(0.94);
+}
+
+.dance-button span:first-child {
+  font-size: 22px;
+}
+
+.dance-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 /* ---------- Watch / Viewer page ---------- */
 .watch-page {
   min-height: 100svh;

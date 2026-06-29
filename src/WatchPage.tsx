@@ -39,6 +39,12 @@ const reactions = [
   { id: 'heart',    label: 'Heart',    emoji: '\u{2764}\u{FE0F}' },
 ]
 
+const danceReactions = [
+  { id: 'dance1', label: 'Spin',   emoji: '\u{1F483}', danceType: 'dance1' },
+  { id: 'dance2', label: 'Bounce', emoji: '\u{1F57A}', danceType: 'dance2' },
+  { id: 'dance3', label: 'Wave',   emoji: '\u{1F389}', danceType: 'dance3' },
+]
+
 type WatchPageProps = {
   roomName: string
   onBack: () => void
@@ -94,6 +100,7 @@ function AudioRenderer() {
 function ReactionSender({ onLocalReaction }: { onLocalReaction: (emoji: string) => void }) {
   const { localParticipant } = useLocalParticipant()
   const lastSentAt = useRef<number>(0)
+  const lastDanceAt = useRef<number>(0)
 
   const handleReaction = useCallback((emoji: string) => {
     if (!localParticipant) return
@@ -115,21 +122,56 @@ function ReactionSender({ onLocalReaction }: { onLocalReaction: (emoji: string) 
     onLocalReaction(emoji)
   }, [localParticipant, onLocalReaction])
 
+  const handleDance = useCallback((danceType: string, emoji: string) => {
+    if (!localParticipant) return
+
+    const now = Date.now()
+    if (now - lastDanceAt.current < 2000) return
+    lastDanceAt.current = now
+
+    try {
+      const payload = new TextEncoder().encode(
+        JSON.stringify({ type: 'dance', danceType, emoji })
+      )
+      localParticipant.publishData(payload, { reliable: false })
+      console.log('[WatchPage] published dance:', danceType, '(identity:', localParticipant.identity, ')')
+    } catch (err) {
+      console.warn('[WatchPage] publishData error:', err)
+    }
+  }, [localParticipant])
+
   return (
-    <div className="reaction-bar" role="group" aria-label="Send a reaction">
-      {reactions.map((reaction) => (
-        <button
-          key={reaction.id}
-          type="button"
-          className="reaction-button"
-          title={reaction.label}
-          aria-label={`React with ${reaction.label}`}
-          onClick={() => handleReaction(reaction.emoji)}
-        >
-          <span aria-hidden="true">{reaction.emoji}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="reaction-bar" role="group" aria-label="Send a reaction">
+        {reactions.map((reaction) => (
+          <button
+            key={reaction.id}
+            type="button"
+            className="reaction-button"
+            title={reaction.label}
+            aria-label={`React with ${reaction.label}`}
+            onClick={() => handleReaction(reaction.emoji)}
+          >
+            <span aria-hidden="true">{reaction.emoji}</span>
+          </button>
+        ))}
+      </div>
+      <div className="dance-bar" role="group" aria-label="Send a dance">
+        {danceReactions.map((dance) => (
+          <button
+            key={dance.id}
+            type="button"
+            className="dance-button"
+            title={dance.label}
+            aria-label={`Send ${dance.label} dance`}
+            onClick={() => handleDance(dance.danceType, dance.emoji)}
+          >
+            <span aria-hidden="true">{dance.emoji}</span>
+            <span className="dance-label">{dance.label}</span>
+          </button>
+        ))}
+      </div>
+    </>
   )
 }
 
