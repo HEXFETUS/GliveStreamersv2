@@ -11,6 +11,12 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client'
 import type { Participant } from 'livekit-client'
 import '@livekit/components-styles'
+import { playSound } from "./sound";
+import {
+  REACTION_SOUND_MAP,
+  DANCE_SOUND_MAP,
+} from "./soundboard";
+
 
 function useDocumentTitle(title: string) {
   useEffect(() => {
@@ -27,6 +33,13 @@ type FloatingReaction = {
   emoji: string
   left: number
   duration: number
+}
+type DanceAnimation = {
+  key: number
+  danceType: string
+  emoji: string
+  left: number
+  createdAt: number
 }
 
 const reactions = [
@@ -102,43 +115,54 @@ function ReactionSender({ onLocalReaction }: { onLocalReaction: (emoji: string) 
   const lastSentAt = useRef<number>(0)
   const lastDanceAt = useRef<number>(0)
 
-  const handleReaction = useCallback((emoji: string) => {
-    if (!localParticipant) return
+const handleReaction = useCallback((emoji: string) => {
+  if (!localParticipant) return
 
-    const now = Date.now()
-    if (now - lastSentAt.current < 500) return
-    lastSentAt.current = now
+  const now = Date.now()
+  if (now - lastSentAt.current < 500) return
+  lastSentAt.current = now
 
-    try {
-      const payload = new TextEncoder().encode(
-        JSON.stringify({ type: 'reaction', emoji })
-      )
-      localParticipant.publishData(payload, { reliable: false })
-      console.log('[WatchPage] published reaction:', emoji, '(identity:', localParticipant.identity, ')')
-    } catch (err) {
-      console.warn('[WatchPage] publishData error:', err)
-    }
+const sound = REACTION_SOUND_MAP[emoji]
+if (sound) {
+  playSound(sound)
+}
 
-    onLocalReaction(emoji)
-  }, [localParticipant, onLocalReaction])
+  try {
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'reaction', emoji })
+    )
 
-  const handleDance = useCallback((danceType: string, emoji: string) => {
-    if (!localParticipant) return
+    localParticipant.publishData(payload, { reliable: false })
+  } catch (err) {
+    console.warn(err)
+  }
 
-    const now = Date.now()
-    if (now - lastDanceAt.current < 2000) return
-    lastDanceAt.current = now
+  onLocalReaction(emoji)
+}, [localParticipant, onLocalReaction])
 
-    try {
-      const payload = new TextEncoder().encode(
-        JSON.stringify({ type: 'dance', danceType, emoji })
-      )
-      localParticipant.publishData(payload, { reliable: false })
-      console.log('[WatchPage] published dance:', danceType, '(identity:', localParticipant.identity, ')')
-    } catch (err) {
-      console.warn('[WatchPage] publishData error:', err)
-    }
-  }, [localParticipant])
+const handleDance = useCallback((danceType: string, emoji: string) => {
+  if (!localParticipant) return
+
+  const now = Date.now()
+  if (now - lastDanceAt.current < 2000) return
+  lastDanceAt.current = now
+
+const sound = DANCE_SOUND_MAP[danceType]
+  if (sound) {
+    playSound(sound);
+  }
+
+  try {
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'dance', danceType, emoji })
+    )
+
+    localParticipant.publishData(payload, { reliable: false })
+    console.log('[WatchPage] published dance:', danceType)
+  } catch (err) {
+    console.warn(err)
+  }
+}, [localParticipant])
 
   return (
     <>
@@ -179,11 +203,20 @@ function ReactionSender({ onLocalReaction }: { onLocalReaction: (emoji: string) 
  * Listens for data messages from other participants (the streamer).
  * Uses useRoomContext() with useConnectionState() guard.
  */
-function ReactionReceiver({ onReaction }: { onReaction: (emoji: string) => void }) {
+function ReactionReceiver({
+  onReaction,
+  onDance,
+}: {
+  onReaction: (emoji: string) => void
+  onDance: (danceType: string, emoji: string) => void
+}) {
   const room = useRoomContext()
   const connectionState = useConnectionState()
-  const callbackRef = useRef(onReaction)
-  callbackRef.current = onReaction
+  const reactionRef = useRef(onReaction)
+const danceRef = useRef(onDance)
+
+reactionRef.current = onReaction
+danceRef.current = onDance
 
   useEffect(() => {
     if (connectionState !== ConnectionState.Connected) return
@@ -193,9 +226,20 @@ function ReactionReceiver({ onReaction }: { onReaction: (emoji: string) => void 
       if (participant?.identity === room.localParticipant?.identity) return
       try {
         const msg = JSON.parse(new TextDecoder().decode(payload))
-        if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
-          callbackRef.current(msg.emoji)
-        }
+if (
+  msg?.type === "reaction" &&
+  typeof msg.emoji === "string"
+) {
+  reactionRef.current(msg.emoji)
+}
+
+if (
+  msg?.type === "dance" &&
+  typeof msg.danceType === "string" &&
+  typeof msg.emoji === "string"
+) {
+  danceRef.current(msg.danceType, msg.emoji)
+}
       } catch { /* ignore */ }
     }
     room.on(RoomEvent.DataReceived, handler)
@@ -206,16 +250,20 @@ function ReactionReceiver({ onReaction }: { onReaction: (emoji: string) => void 
 }
 
 function WatchPage({ roomName, onBack }: WatchPageProps) {
-  const [token, setToken] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [connecting, setConnecting] = useState(true)
-  const [isMaximized, setIsMaximized] = useState(false)
-  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
-  const [remoteReactions, setRemoteReactions] = useState<FloatingReaction[]>([])
-  const reactionId = useRef(0)
-  const remoteReactionId = useRef(0)
+const [token, setToken] = useState<string | null>(null)
+const [error, setError] = useState<string | null>(null)
+const [connecting, setConnecting] = useState(true)
+const [isMaximized, setIsMaximized] = useState(false)
 
-  useDocumentTitle(`Watching · ${roomName}`)
+const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
+const [remoteReactions, setRemoteReactions] = useState<FloatingReaction[]>([])
+const [danceAnimations, setDanceAnimations] = useState<DanceAnimation[]>([])
+
+const reactionId = useRef(0)
+const remoteReactionId = useRef(0)
+const danceId = useRef(0)
+
+useDocumentTitle(`Watching · ${roomName}`)
 
   const fetchToken = useCallback(async () => {
     setConnecting(true)
@@ -272,6 +320,29 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
       setRemoteReactions((prev) => prev.filter((r) => r.key !== key))
     }, newReaction.duration)
   }, [])
+
+  const addDanceAnimation = useCallback((danceType: string, emoji: string) => {
+    const key = danceId.current++
+ console.log("Dance animation called", danceType, emoji)
+  const sound = DANCE_SOUND_MAP[danceType]
+  if (sound) {
+    playSound(sound)
+  }
+
+  const newDance: DanceAnimation = {
+    key,
+    danceType,
+    emoji,
+    left: 10 + Math.random() * 60,
+    createdAt: Date.now(),
+  }
+
+  setDanceAnimations((prev) => [...prev, newDance])
+
+  window.setTimeout(() => {
+    setDanceAnimations((prev) => prev.filter((d) => d.key !== key))
+  }, 3500)
+}, [])
 
   const toggleMaximize = useCallback(() => {
     setIsMaximized((prev) => !prev)
@@ -341,7 +412,9 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
           >
             <StreamerView />
             <AudioRenderer />
-            <ReactionReceiver onReaction={addRemoteReaction} />
+            <ReactionReceiver
+            onReaction={addRemoteReaction}
+            onDance={addDanceAnimation}/>
 
             <div className="reaction-stage" aria-hidden="true">
               {floatingReactions.map((r) => (
@@ -354,6 +427,15 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
                 <span key={r.key} className="floating-reaction"
                   style={{ left: `${r.left}%`, animationDuration: `${r.duration}ms` }}>
                   {r.emoji}
+                </span>
+              ))}
+              {danceAnimations.map((dance) => (
+                <span
+                  key={dance.key}
+                  className={`dance-emoji dance-${dance.danceType}`}
+                  style={{ left: `${dance.left}%` }}
+                >
+                  {dance.emoji}
                 </span>
               ))}
             </div>

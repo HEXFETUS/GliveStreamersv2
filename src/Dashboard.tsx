@@ -10,6 +10,11 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client'
 import type { Participant } from 'livekit-client'
 import '@livekit/components-styles'
+import { playSound } from "./sound";
+import {
+  REACTION_SOUND_MAP,
+  DANCE_SOUND_MAP,
+} from "./soundboard";
 
 const API_BASE = ''
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://glivestreamer-t2otgzur.livekit.cloud'
@@ -317,36 +322,57 @@ function ReactionListener({ addRemoteReaction, onDance }: { addRemoteReaction: (
 
   useEffect(() => {
     if (connectionState !== ConnectionState.Connected) {
-      console.log('[ReactionListener] waiting for connected state, current:', connectionState)
       return
     }
     if (!room) {
-      console.log('[ReactionListener] no room context yet')
       return
     }
 
-    console.log('[ReactionListener] registering DataReceived. Room:', room.name, 'Identity:', room.localParticipant?.identity)
 
     const handler = (payload: Uint8Array, participant?: Participant) => {
       if (participant?.identity === room.localParticipant?.identity) return
       try {
-        const msg = JSON.parse(new TextDecoder().decode(payload))
-        console.log('[ReactionListener] received:', msg, 'from:', participant?.identity)
-        if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
-          reactionCallbackRef.current(msg.emoji)
-        }
-        if (msg?.type === 'dance' && typeof msg.danceType === 'string' && typeof msg.emoji === 'string') {
-          danceCallbackRef.current(msg.danceType, msg.emoji)
-        }
-      } catch { /* ignore */ }
+const msg = JSON.parse(new TextDecoder().decode(payload))
+
+if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
+
+    reactionCallbackRef.current(msg.emoji)
+
+    const sound = REACTION_SOUND_MAP[msg.emoji]
+
+    if (sound) {
+        
+        playSound(sound)
+    }
+}
+if (
+    msg?.type === 'dance' &&
+    typeof msg.danceType === 'string' &&
+    typeof msg.emoji === 'string'
+) {
+    
+
+    danceCallbackRef.current(msg.danceType, msg.emoji)
+
+    const sound = DANCE_SOUND_MAP[msg.danceType]
+    
+
+    if (sound) {
+        
+        playSound(sound)
+    }
+}
+      } catch (err) {
+  console.error("ReactionListener error:", err)
+}
     }
 
     room.on(RoomEvent.DataReceived, handler)
-    console.log('[ReactionListener] DataReceived listener registered')
+    
 
     return () => {
       room.off(RoomEvent.DataReceived, handler)
-      console.log('[ReactionListener] DataReceived listener removed')
+      
     }
   }, [room, connectionState])
 
