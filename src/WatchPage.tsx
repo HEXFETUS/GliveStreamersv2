@@ -60,7 +60,7 @@ function StreamerView() {
   return (
     <VideoTrack
       trackRef={tracks[0]}
-      style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+      style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#fff' }}
     />
   )
 }
@@ -167,7 +167,7 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
   const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(true)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
   const [remoteReactions, setRemoteReactions] = useState<FloatingReaction[]>([])
   const reactionId = useRef(0)
@@ -231,17 +231,19 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
     }, newReaction.duration)
   }, [])
 
-  const toggleFullscreen = () => {
-    const el = document.getElementById('watch-video-wrapper')
-    if (!el) return
-    if (!document.fullscreenElement) {
-      el.requestFullscreen().catch(() => {})
-      setIsFullscreen(true)
-    } else {
-      document.exitFullscreen().catch(() => {})
-      setIsFullscreen(false)
+  const toggleMaximize = useCallback(() => {
+    setIsMaximized((prev) => !prev)
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMaximized) {
+        setIsMaximized(false)
+      }
     }
-  }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isMaximized])
 
   if (error) {
     return (
@@ -270,19 +272,22 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
       <div className="watch-header">
         <button type="button" className="watch-back" onClick={onBack}>← Back</button>
         <strong className="watch-room-name">{roomName}</strong>
-        <button type="button" className="watch-fullscreen" onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-          {isFullscreen ? '⛶' : '⛶'}
-        </button>
       </div>
       <div className="watch-container">
         <div
           id="watch-video-wrapper"
-          className={`watch-video-wrapper${isFullscreen ? ' is-fullscreen' : ''}`}
-          style={{ background: '#000' }}
+          className={`watch-video-wrapper${isMaximized ? ' is-maximized' : ''}`}
+          style={{ background: '#fff' }}
         >
+          <button
+            type="button"
+            className="fullscreen-button"
+            aria-label={isMaximized ? 'Exit maximize' : 'Maximize'}
+            title={isMaximized ? 'Exit maximize' : 'Maximize'}
+            onClick={toggleMaximize}
+          >
+            {isMaximized ? '\u2715' : '\u26F6'}
+          </button>
           <LiveKitRoom
             video={false}
             audio={true}
