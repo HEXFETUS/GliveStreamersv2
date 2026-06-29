@@ -4,20 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c red,cyan \"pnpm dev:backend\" \"pnpm dev:frontend\"",
-    "dev:backend": "cd backend && pnpm dev",
-    "dev:frontend": "vite --host",
-    "dev:host": "concurrently -n backend,frontend -c red,cyan \"pnpm dev:backend\" \"pnpm dev:frontend:host\"",
-    "dev:frontend:host": "vite --host",
+    "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.5",
-    "@livekit/components-styles": "^1.2.0",
     "@supabase/supabase-js": "^2.49.1",
-    "livekit-client": "^2.20.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -27,7 +21,6 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
-    "concurrently": "^9.2.3",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
