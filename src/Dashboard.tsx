@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LiveKitRoom,
   useLocalParticipant,
+  useRoomContext,
+  useConnectionState,
   VideoTrack,
   useTracks,
 } from '@livekit/components-react'
-import { Track } from 'livekit-client'
+import { Track, RoomEvent, ConnectionState } from 'livekit-client'
+import type { Participant } from 'livekit-client'
 import '@livekit/components-styles'
 
 const API_BASE = ''
@@ -43,23 +46,21 @@ type DashboardProps = {
 function Dashboard({ user, onLogout }: DashboardProps) {
   const frameRef = useRef<HTMLDivElement | null>(null)
   const reactionId = useRef(0)
+  const remoteReactionId = useRef(0)
 
   const [isLive, setIsLive] = useState(false)
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isMaximized, setIsMaximized] = useState(false)
-  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>(
-    []
-  )
-  const [remoteReactions] = useState<FloatingReaction[]>([])
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
+  const [remoteReactions, setRemoteReactions] = useState<FloatingReaction[]>([])
   const [lkToken, setLkToken] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
 
   const roomName = 'demo-main-stage'
   const identity = user?.name || `creator-${Math.random().toString(36).substring(2, 9)}`
 
-  // Fetch a LiveKit token from backend
   const fetchLkToken = useCallback(async () => {
     setConnecting(true)
     setError(null)
@@ -91,13 +92,11 @@ function Dashboard({ user, onLogout }: DashboardProps) {
     }
   }, [roomName, identity])
 
-  // Stop streaming: disconnect by clearing token
   const stopStream = useCallback(() => {
     setLkToken(null)
     setIsLive(false)
   }, [])
 
-  // Handle going live
   const goLive = useCallback(async () => {
     setError(null)
     await fetchLkToken()
@@ -115,7 +114,6 @@ function Dashboard({ user, onLogout }: DashboardProps) {
     setIsMaximized((prev) => !prev)
   }, [])
 
-  // Handle Escape key to exit maximize
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isMaximized) {
@@ -126,29 +124,33 @@ function Dashboard({ user, onLogout }: DashboardProps) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isMaximized])
 
-  const sendReaction = useCallback((emoji: string) => {
+  const addLocalReaction = useCallback((emoji: string) => {
     const key = reactionId.current++
-    const newReaction: FloatingReaction = {
-      key,
-      emoji,
-      left: 10 + Math.random() * 80,
-      duration: 2200 + Math.random() * 800,
-    }
-    setFloatingReactions((prev) => [...prev, newReaction])
+    setFloatingReactions((prev) => [
+      ...prev,
+      { key, emoji, left: 10 + Math.random() * 80, duration: 2200 + Math.random() * 800 },
+    ])
     window.setTimeout(() => {
-      setFloatingReactions((prev) =>
-        prev.filter((reaction) => reaction.key !== key)
-      )
-    }, newReaction.duration)
+      setFloatingReactions((prev) => prev.filter((r) => r.key !== key))
+    }, 3000)
+  }, [])
+
+  const addRemoteReaction = useCallback((emoji: string) => {
+    const key = remoteReactionId.current++
+    setRemoteReactions((prev) => [
+      ...prev,
+      { key, emoji, left: 5 + Math.random() * 90, duration: 2400 + Math.random() * 1000 },
+    ])
+    window.setTimeout(() => {
+      setRemoteReactions((prev) => prev.filter((r) => r.key !== key))
+    }, 3400)
   }, [])
 
   return (
     <main className="dashboard">
       <aside className="sidebar" aria-label="Stream controls">
         <div className="brand">
-          <div className="brand-mark" aria-hidden="true">
-            S
-          </div>
+          <div className="brand-mark" aria-hidden="true">S</div>
           <div>
             <strong>StreamPOC</strong>
             <span>Creator console</span>
@@ -182,7 +184,6 @@ function Dashboard({ user, onLogout }: DashboardProps) {
       <section className="workspace">
         <section className={`preview-panel ${isMaximized ? 'is-maximized' : ''}`} aria-label="Stream preview">
           <div className={`preview-frame ${isMaximized ? 'is-maximized' : ''}`} ref={frameRef}>
-            {/* When LiveKit is connected, show the LiveKit room which publishes tracks */}
             {lkToken ? (
               <LiveKitRoom
                 video={true}
@@ -198,6 +199,7 @@ function Dashboard({ user, onLogout }: DashboardProps) {
               >
                 <LiveControls />
                 <LocalVideo />
+                <ReactionListener addRemoteReaction={addRemoteReaction} />
               </LiveKitRoom>
             ) : (
               <div className="preview-noise"></div>
@@ -222,64 +224,38 @@ function Dashboard({ user, onLogout }: DashboardProps) {
 
             <div className="reaction-stage" aria-hidden="true">
               {floatingReactions.map((reaction) => (
-                <span
-                  key={reaction.key}
-                  className="floating-reaction"
-                  style={{
-                    left: `${reaction.left}%`,
-                    animationDuration: `${reaction.duration}ms`,
-                  }}
-                >
+                <span key={reaction.key} className="floating-reaction" style={{ left: `${reaction.left}%`, animationDuration: `${reaction.duration}ms` }}>
                   {reaction.emoji}
                 </span>
               ))}
               {remoteReactions.map((reaction) => (
-                <span
-                  key={reaction.key}
-                  className="floating-reaction"
-                  style={{
-                    left: `${reaction.left}%`,
-                    animationDuration: `${reaction.duration}ms`,
-                  }}
-                >
+                <span key={reaction.key} className="floating-reaction" style={{ left: `${reaction.left}%`, animationDuration: `${reaction.duration}ms` }}>
                   {reaction.emoji}
                 </span>
               ))}
             </div>
 
             <div className="reaction-bar" role="group" aria-label="Send a reaction">
-              {reactions.map((reaction) => (
+              {reactions.map((r) => (
                 <button
-                  key={reaction.id}
+                  key={r.id}
                   type="button"
                   className="reaction-button"
-                  title={reaction.label}
-                  aria-label={`React with ${reaction.label}`}
-                  onClick={() => sendReaction(reaction.emoji)}
+                  title={r.label}
+                  aria-label={`React with ${r.label}`}
+                  onClick={() => addLocalReaction(r.emoji)}
                 >
-                  <span aria-hidden="true">{reaction.emoji}</span>
+                  <span aria-hidden="true">{r.emoji}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div className="control-row" aria-label="Broadcast controls">
-            <button
-              className={`icon-button ${cameraOn ? 'active' : ''}`}
-              type="button"
-              aria-label="Toggle camera"
-              aria-pressed={cameraOn}
-              onClick={toggleCamera}
-            >
+            <button className={`icon-button ${cameraOn ? 'active' : ''}`} type="button" aria-label="Toggle camera" aria-pressed={cameraOn} onClick={toggleCamera}>
               <span aria-hidden="true"></span>
             </button>
-            <button
-              className={`icon-button mic ${micOn ? 'active' : ''}`}
-              type="button"
-              aria-label="Toggle microphone"
-              aria-pressed={micOn}
-              onClick={toggleMic}
-            >
+            <button className={`icon-button mic ${micOn ? 'active' : ''}`} type="button" aria-label="Toggle microphone" aria-pressed={micOn} onClick={toggleMic}>
               <span aria-hidden="true"></span>
             </button>
             <button className="danger" type="button" onClick={stopStream} disabled={!isLive}>
@@ -292,7 +268,52 @@ function Dashboard({ user, onLogout }: DashboardProps) {
   )
 }
 
-// Inner component to control camera/mic via LiveKit once connected
+/**
+ * Listens for data channel messages from viewers.
+ * Uses useRoomContext() (provided by LiveKitRoom context) with useConnectionState()
+ * to only register the listener when the room is fully connected.
+ */
+function ReactionListener({ addRemoteReaction }: { addRemoteReaction: (emoji: string) => void }) {
+  const room = useRoomContext()
+  const connectionState = useConnectionState()
+  const callbackRef = useRef(addRemoteReaction)
+  callbackRef.current = addRemoteReaction
+
+  useEffect(() => {
+    if (connectionState !== ConnectionState.Connected) {
+      console.log('[ReactionListener] waiting for connected state, current:', connectionState)
+      return
+    }
+    if (!room) {
+      console.log('[ReactionListener] no room context yet')
+      return
+    }
+
+    console.log('[ReactionListener] registering DataReceived. Room:', room.name, 'Identity:', room.localParticipant?.identity)
+
+    const handler = (payload: Uint8Array, participant?: Participant) => {
+      if (participant?.identity === room.localParticipant?.identity) return
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload))
+        console.log('[ReactionListener] received:', msg, 'from:', participant?.identity)
+        if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
+          callbackRef.current(msg.emoji)
+        }
+      } catch { /* ignore */ }
+    }
+
+    room.on(RoomEvent.DataReceived, handler)
+    console.log('[ReactionListener] DataReceived listener registered')
+
+    return () => {
+      room.off(RoomEvent.DataReceived, handler)
+      console.log('[ReactionListener] DataReceived listener removed')
+    }
+  }, [room, connectionState])
+
+  return null
+}
+
 function LiveControls() {
   const { localParticipant } = useLocalParticipant()
   const [cameraOn] = useState(true)
@@ -307,7 +328,6 @@ function LiveControls() {
   return null
 }
 
-// Renders the local video track from LiveKit
 function LocalVideo() {
   const tracks = useTracks([Track.Source.Camera])
   if (tracks.length === 0) return null

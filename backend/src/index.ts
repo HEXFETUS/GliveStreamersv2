@@ -16,9 +16,11 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 const isSupabaseConfigured = supabaseUrl !== 'your_supabase_project_url' && supabaseUrl !== '';
 
-// Initialize LiveKit RoomServiceClient (used to list active rooms)
+// The RoomServiceClient needs an HTTP(S) URL, but LIVEKIT_URL may be wss://.
+// Normalize it: replace wss:// with https://
+const livekitApiUrl = (process.env.LIVEKIT_URL || '').replace(/^wss:\/\//, 'https://')
 const roomService = new RoomServiceClient(
-  process.env.LIVEKIT_URL || '',
+  livekitApiUrl,
   process.env.LIVEKIT_API_KEY || '',
   process.env.LIVEKIT_API_SECRET || ''
 );
@@ -250,6 +252,9 @@ app.post('/api/token', async (req, res) => {
     token.addGrant({
       roomJoin: true,
       room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,   // Required for viewers to send reaction data messages
     });
 
     const jwt = await token.toJwt();

@@ -107,9 +107,18 @@ function HomePage({ onLoginClick, onWatchStream }: HomePageProps) {
       try {
         const res = await fetch(`${API_BASE}/api/rooms`)
         if (!res.ok) throw new Error('Failed to fetch')
-        const data: LiveRoom[] = await res.json()
+        let data: LiveRoom[] = await res.json()
         if (!cancelled) {
-          setRooms(data)
+          // Filter out empty/stale rooms and deduplicate by name
+          data = data.filter((r) => r.participantCount > 0)
+          const seen = new Map<string, LiveRoom>()
+          for (const room of data) {
+            const existing = seen.get(room.name)
+            if (!existing || room.createdAt > existing.createdAt) {
+              seen.set(room.name, room)
+            }
+          }
+          setRooms(Array.from(seen.values()))
           setLoading(false)
         }
       } catch {
