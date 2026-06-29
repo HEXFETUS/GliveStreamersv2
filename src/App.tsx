@@ -1,26 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 
-const schedule = [
-  { time: '09:00', title: 'Camera and audio check', status: 'Done' },
-  { time: '09:15', title: 'Pre-roll countdown', status: 'Ready' },
-  { time: '09:30', title: 'Live product walkthrough', status: 'Queued' },
-  { time: '10:05', title: 'Audience Q&A', status: 'Queued' },
-]
-
-const chatMessages = [
-  { name: 'Maya', text: 'Audio is clean on my side.', tone: 'viewer' },
-  { name: 'Ken', text: 'Can you pin the setup link?', tone: 'viewer' },
-  { name: 'Host', text: 'Link is in the chat header now.', tone: 'host' },
-  { name: 'Luis', text: 'Screen share looks sharp.', tone: 'viewer' },
-]
-
-const healthMetrics = [
-  { label: 'Bitrate', value: '5.8 Mbps', detail: 'Target 6 Mbps' },
-  { label: 'Latency', value: '1.9s', detail: 'Low latency' },
-  { label: 'Dropped', value: '0.2%', detail: 'Stable' },
-]
-
 const reactions = [
   { id: 'smile', label: 'Smile', emoji: '\u{1F642}' },
   { id: 'happy', label: 'Happy', emoji: '\u{1F600}' },
@@ -150,7 +130,7 @@ function App() {
 
   return (
     <main className="dashboard">
-      <aside className="sidebar" aria-label="Dashboard navigation">
+      <aside className="sidebar" aria-label="Stream controls">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
             S
@@ -161,235 +141,97 @@ function App() {
           </div>
         </div>
 
-        <nav>
-          <a className="active" href="#overview">Overview</a>
-          <a href="#studio">Studio</a>
-          <a href="#audience">Audience</a>
-          <a href="#analytics">Analytics</a>
-          <a href="#settings">Settings</a>
-        </nav>
-
         <div className="go-live-panel">
           <span>Room</span>
           <strong>demo-main-stage</strong>
           <button type="button" onClick={isLive ? stopStream : goLive}>
-            {isLive ? 'Stop stream' : 'Start stream'}
+            {isLive ? 'End live' : 'Go live'}
           </button>
         </div>
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Live control room</p>
-            <h1>Streamer dashboard</h1>
-          </div>
-          <div className="topbar-actions" aria-label="Stream actions">
-            <button className="ghost" type="button">Schedule</button>
-            <button type="button" onClick={isLive ? stopStream : goLive}>
-              {isLive ? 'End live' : 'Go live'}
+        <section className="preview-panel" aria-label="Stream preview">
+          <div className="preview-frame" ref={frameRef}>
+            <video
+              ref={videoRef}
+              className={`preview-video ${isLive ? 'is-live' : ''}`}
+              autoPlay
+              playsInline
+              muted
+            />
+            {!isLive && <div className="preview-noise"></div>}
+
+            <button
+              type="button"
+              className="fullscreen-button"
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? '\u2715' : '\u26F6'}
             </button>
-          </div>
-        </header>
 
-        <section className="status-strip" aria-label="Stream status">
-          <div>
-            <span className="status-dot"></span>
-            <strong>{isLive ? 'Live now' : 'Preview ready'}</strong>
-            <small>Camera, mic, and ingest connected</small>
-          </div>
-          <div>
-            <strong>1,284</strong>
-            <small>Waiting viewers</small>
-          </div>
-          <div>
-            <strong>42 min</strong>
-            <small>Scheduled runtime</small>
-          </div>
-          <div>
-            <strong>1080p</strong>
-            <small>Output quality</small>
-          </div>
-        </section>
+            <div className="preview-overlay">
+              <span className={`live-pill ${isLive ? 'on-air' : ''}`}>
+                {isLive ? 'Live' : 'Standby'}
+              </span>
+            </div>
+            {error && <p className="preview-error" role="alert">{error}</p>}
 
-        <div className="content-grid">
-          <section className="preview-panel" id="studio" aria-label="Stream preview">
-            <div className="preview-frame" ref={frameRef}>
-              <video
-                ref={videoRef}
-                className={`preview-video ${isLive ? 'is-live' : ''}`}
-                autoPlay
-                playsInline
-                muted
-              />
-              {!isLive && <div className="preview-noise"></div>}
-
-              <button
-                type="button"
-                className="fullscreen-button"
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                onClick={toggleFullscreen}
-              >
-                {isFullscreen ? '\u2715' : '\u26F6'}
-              </button>
-
-              <div className="preview-overlay">
-                <span className={`live-pill ${isLive ? 'on-air' : ''}`}>
-                  {isLive ? 'Live' : 'Standby'}
+            <div className="reaction-stage" aria-hidden="true">
+              {floatingReactions.map((reaction) => (
+                <span
+                  key={reaction.key}
+                  className="floating-reaction"
+                  style={{
+                    left: `${reaction.left}%`,
+                    animationDuration: `${reaction.duration}ms`,
+                  }}
+                >
+                  {reaction.emoji}
                 </span>
-                <div>
-                  <h2>Weekly product demo</h2>
-                  <p>Camera 1 / Screen share / Lobby music</p>
-                </div>
-              </div>
-              {error && <p className="preview-error" role="alert">{error}</p>}
-
-              <div className="reaction-stage" aria-hidden="true">
-                {floatingReactions.map((reaction) => (
-                  <span
-                    key={reaction.key}
-                    className="floating-reaction"
-                    style={{
-                      left: `${reaction.left}%`,
-                      animationDuration: `${reaction.duration}ms`,
-                    }}
-                  >
-                    {reaction.emoji}
-                  </span>
-                ))}
-              </div>
-
-              <div className="reaction-bar" role="group" aria-label="Send a reaction">
-                {reactions.map((reaction) => (
-                  <button
-                    key={reaction.id}
-                    type="button"
-                    className="reaction-button"
-                    title={reaction.label}
-                    aria-label={`React with ${reaction.label}`}
-                    onClick={() => sendReaction(reaction.emoji)}
-                  >
-                    <span aria-hidden="true">{reaction.emoji}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="control-row" aria-label="Broadcast controls">
-              <button
-                className={`icon-button ${cameraOn ? 'active' : ''}`}
-                type="button"
-                aria-label="Toggle camera"
-                aria-pressed={cameraOn}
-                onClick={toggleCamera}
-              >
-                <span aria-hidden="true"></span>
-              </button>
-              <button
-                className={`icon-button mic ${micOn ? 'active' : ''}`}
-                type="button"
-                aria-label="Toggle microphone"
-                aria-pressed={micOn}
-                onClick={toggleMic}
-              >
-                <span aria-hidden="true"></span>
-              </button>
-              <button className="icon-button screen" type="button" aria-label="Share screen">
-                <span aria-hidden="true"></span>
-              </button>
-              <button className="icon-button record" type="button" aria-label="Record stream">
-                <span aria-hidden="true"></span>
-              </button>
-              <button className="danger" type="button" onClick={stopStream} disabled={!isLive}>
-                End rehearsal
-              </button>
-            </div>
-          </section>
-
-          <aside className="chat-panel" id="audience" aria-label="Audience chat">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Audience</p>
-                <h2>Live chat</h2>
-              </div>
-              <span>384 online</span>
-            </div>
-            <div className="chat-list">
-              {chatMessages.map((message) => (
-                <article className={`chat-message ${message.tone}`} key={`${message.name}-${message.text}`}>
-                  <strong>{message.name}</strong>
-                  <p>{message.text}</p>
-                </article>
               ))}
             </div>
-            <form className="chat-compose">
-              <input aria-label="Message" placeholder="Message viewers" />
-              <button type="submit">Send</button>
-            </form>
-          </aside>
-        </div>
 
-        <section className="lower-grid" id="analytics">
-          <div className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Signal</p>
-                <h2>Stream health</h2>
-              </div>
-              <span>LiveKit ready</span>
-            </div>
-            <div className="metric-grid">
-              {healthMetrics.map((metric) => (
-                <article className="metric" key={metric.label}>
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                  <small>{metric.detail}</small>
-                </article>
+            <div className="reaction-bar" role="group" aria-label="Send a reaction">
+              {reactions.map((reaction) => (
+                <button
+                  key={reaction.id}
+                  type="button"
+                  className="reaction-button"
+                  title={reaction.label}
+                  aria-label={`React with ${reaction.label}`}
+                  onClick={() => sendReaction(reaction.emoji)}
+                >
+                  <span aria-hidden="true">{reaction.emoji}</span>
+                </button>
               ))}
             </div>
           </div>
 
-          <div className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Run of show</p>
-                <h2>Session queue</h2>
-              </div>
-              <span>4 blocks</span>
-            </div>
-            <div className="schedule-list">
-              {schedule.map((item) => (
-                <article className="schedule-item" key={`${item.time}-${item.title}`}>
-                  <time>{item.time}</time>
-                  <strong>{item.title}</strong>
-                  <span>{item.status}</span>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel setup-panel" id="settings">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Setup</p>
-                <h2>Sources</h2>
-              </div>
-            </div>
-            <label>
-              Camera
-              <select defaultValue="Camera 1">
-                <option>Camera 1</option>
-                <option>External capture</option>
-              </select>
-            </label>
-            <label>
-              Microphone
-              <select defaultValue="Studio mic">
-                <option>Studio mic</option>
-                <option>Headset mic</option>
-              </select>
-            </label>
+          <div className="control-row" aria-label="Broadcast controls">
+            <button
+              className={`icon-button ${cameraOn ? 'active' : ''}`}
+              type="button"
+              aria-label="Toggle camera"
+              aria-pressed={cameraOn}
+              onClick={toggleCamera}
+            >
+              <span aria-hidden="true"></span>
+            </button>
+            <button
+              className={`icon-button mic ${micOn ? 'active' : ''}`}
+              type="button"
+              aria-label="Toggle microphone"
+              aria-pressed={micOn}
+              onClick={toggleMic}
+            >
+              <span aria-hidden="true"></span>
+            </button>
+            <button className="danger" type="button" onClick={stopStream} disabled={!isLive}>
+              End rehearsal
+            </button>
           </div>
         </section>
       </section>
