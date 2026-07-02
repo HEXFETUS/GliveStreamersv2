@@ -15,13 +15,14 @@ A real-time live streaming app built with **React + LiveKit** (frontend) and **E
 
 ## Prerequisites
 
-Before deploying, you'll need accounts for:
+Before deploying, you'll need:
 
-1. **GitHub** — to host the code
-2. **LiveKit Cloud** — for WebRTC streaming infrastructure
-3. **Vercel** — for hosting the frontend (free tier)
-4. **Render** — for hosting the backend (free tier)
-5. **Supabase** _(optional)_ — only if you want real user authentication
+- **pnpm** — package manager (install via `npm i -g pnpm`)
+- **GitHub** — to host the code
+- **LiveKit Cloud** — for WebRTC streaming infrastructure
+- **Vercel** — for hosting the frontend (free tier)
+- **Render** — for hosting the backend (free tier)
+- **Supabase** _(optional)_ — only if you want real user authentication
 
 ---
 
@@ -107,7 +108,7 @@ Visit `https://your-app.onrender.com/health` — you should see:
    | -------------------- | ------------------- |
    | **Framework Preset** | `Vite`              |
    | **Root Directory**   | `./` (project root) |
-   | **Build Command**    | `npm run build`     |
+   | **Build Command**    | `pnpm build`        |
    | **Output Directory** | `dist`              |
 
 4. Add **Environment Variables**:
@@ -153,19 +154,19 @@ You can also **sign up** new accounts on the login page — they'll work until t
 
 ```bash
 cd backend
-npm install
+pnpm install
 cp .env.example .env
 # Edit .env with your LiveKit credentials
-npm run dev
+pnpm dev
 ```
 
 ### 2. Frontend
 
 ```bash
 # From project root
-npm install
+pnpm install
 # Edit .env with your values
-npm run dev
+pnpm dev
 ```
 
 The frontend dev server runs on `http://localhost:5173` and proxies API calls to the backend at `http://localhost:3001`.
