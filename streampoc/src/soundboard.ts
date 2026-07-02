@@ -13,3 +13,13 @@ export const DANCE_SOUND_MAP: Record<string, string> = {
   dance2: "/audio/bounce.mp3",
   dance3: "/audio/horn.mp3",
 }
+
+// Gift emojis used in the gift buttons — these play synthetic sounds via sound.ts
+export const GIFT_EMOJIS = new Set([
+  "\uD83D\uDC4D",   // 👍 Like
+  "\u2764\uFE0F",   // ❤️ Heart
+  "\uD83C\uDF1F",   // ⭐ Star
+  "\uD83D\uDC51",   // 👑 Crown
+  "\uD83D\uDE80",   // 🚀 Rocket
+  "\uD83D\uDC8E",   // 💎 Diamond
+])

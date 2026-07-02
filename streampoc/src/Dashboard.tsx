@@ -10,10 +10,11 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client'
 import type { Participant } from 'livekit-client'
 import '@livekit/components-styles'
-import { playSound } from "./sound";
+import { playSound, playGiftSound } from "./sound";
 import {
   REACTION_SOUND_MAP,
   DANCE_SOUND_MAP,
+  GIFT_EMOJIS,
 } from "./soundboard";
 import LiveSidePanel from './LiveSidePanel'
 
@@ -381,7 +382,11 @@ const msg = JSON.parse(new TextDecoder().decode(payload))
 if (msg?.type === 'reaction' && typeof msg.emoji === 'string') {
     reactionCallbackRef.current(msg.emoji)
     const sound = REACTION_SOUND_MAP[msg.emoji]
-    if (sound) playSound(sound)
+    if (sound) {
+      playSound(sound)
+    } else if (GIFT_EMOJIS.has(msg.emoji)) {
+      playGiftSound(msg.emoji)
+    }
 }
 if (
     msg?.type === 'dance' &&

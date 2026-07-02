@@ -11,7 +11,7 @@ import {
 import { Track, RoomEvent, ConnectionState } from 'livekit-client'
 import type { Participant } from 'livekit-client'
 import '@livekit/components-styles'
-import { playSound } from "./sound";
+import { playSound, playGiftSound } from "./sound";
 import {
   REACTION_SOUND_MAP,
   DANCE_SOUND_MAP,
@@ -312,6 +312,8 @@ function WatchPage({ roomName, onBack }: WatchPageProps) {
     const gift = MOCK_GIFTS.find((g) => g.id === giftId)
     if (!gift) return
     const emoji = gift.emoji
+    // Play synthetic gift sound for the clicking viewer
+    playGiftSound(emoji)
     addLocalReaction(emoji)
     // Dispatch custom event so TtReactionSender sends it over the data channel
     window.dispatchEvent(new CustomEvent('tt-reaction', { detail: { emoji } }))
@@ -540,8 +542,9 @@ function TtReactionSender({ onLocalReaction }: { onLocalReaction: (emoji: string
       } catch (err) {
         console.warn(err)
       }
-
-      onLocalReaction(detail.emoji)
+      // NOTE: onLocalReaction is NOT called here because the caller
+      // (handleReactionClick / handleGift) already called addLocalReaction
+      // Fixes duplicate floating reaction bug.
     }
 
     window.addEventListener('tt-reaction', handler)
