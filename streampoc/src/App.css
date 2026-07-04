@@ -578,6 +578,14 @@ button.danger {
   background: #ffffff;
   flex-shrink: 0;
 }
+
+/* ── 9:16 portrait ratio for mobile (TikTok-style) ── */
+@media (max-width: 639px) {
+  .watch-video-wrapper {
+    aspect-ratio: 9 / 16;
+    max-width: 100%;
+  }
+}
 .watch-video-wrapper .lk-room-container { background: #ffffff !important; }
 .watch-video-wrapper video { background: #ffffff !important; }
 /* Desktop maximize: expand width, keep 16:9 aspect ratio */
@@ -593,6 +601,7 @@ button.danger {
   .watch-video-wrapper.is-maximized .lk-room-container {
     width: 100% !important;
     height: 100% !important;
+    background: #000 !important;
   }
   .watch-video-wrapper.is-maximized video {
     width: 100% !important;
@@ -601,8 +610,33 @@ button.danger {
   }
 }
 
-/* Mobile/Tablet fullscreen via Fullscreen API */
-@media (max-width: 1023px) {
+/* Tablet maximize: expand to fill available space */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .watch-video-wrapper.is-maximized {
+    max-width: none;
+    width: 100%;
+    flex: 1 1 auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 0;
+    background: #000 !important;
+    min-height: 0;
+    align-self: stretch;
+  }
+  .watch-video-wrapper.is-maximized .lk-room-container {
+    width: 100% !important;
+    height: 100% !important;
+    background: #000 !important;
+  }
+  .watch-video-wrapper.is-maximized video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    background: #000 !important;
+  }
+}
+
+/* Mobile fullscreen via Fullscreen API (max-width: 639px) */
+@media (max-width: 639px) {
   .watch-video-wrapper.is-maximized {
     max-width: none;
     width: 100%;
@@ -621,7 +655,7 @@ button.danger {
   .watch-video-wrapper.is-maximized video {
     width: 100% !important;
     height: 100% !important;
-    object-fit: contain !important;
+    object-fit: cover !important;
     background: #000 !important;
   }
 }
@@ -1205,7 +1239,6 @@ html, body, #root { background: #000000; }
   .watch-header { padding: 10px 16px; gap: 10px; }
   .watch-back { min-height: 32px; padding: 0 12px; font-size: 13px; }
   .watch-room-name { font-size: 13px; }
-  .watch-video-wrapper { aspect-ratio: 4 / 3; }
   .dance-bar { bottom: 64px; gap: 4px; padding: 4px 8px; }
   .dance-button { padding: 4px 8px; }
   .dance-button span:first-child { font-size: 18px; }
