@@ -11,7 +11,7 @@ type LoginPageProps = {
   onBack: () => void
 }
 
-const API_BASE = ''
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [email, setEmail] = useState('')

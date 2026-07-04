@@ -8,6 +8,18 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@livekit/components-styles'],
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: (id: string) => {
+          if (id.includes('@livekit/components-react') || id.includes('livekit-client') || id.includes('@livekit/components-styles')) {
+            return 'livekit';
+          }
+        },
+      },
+    },
+  },
   server: {
     host: true, // Expose on all network interfaces (0.0.0.0)
     proxy: {

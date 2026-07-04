@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n backend,frontend -c red,cyan \"pnpm dev:backend\" \"pnpm dev:frontend\"",
-    "dev:backend": "cd streampoc/backend && pnpm dev",
+    "dev:backend": "cd backend && pnpm dev",
     "dev:frontend": "cd streampoc && pnpm dev",
     "dev:host": "concurrently -n backend,frontend -c red,cyan \"pnpm dev:backend\" \"pnpm dev:frontend:host\"",
     "dev:frontend:host": "cd streampoc && pnpm dev -- --host",
     "build": "cd streampoc && pnpm build",
+    "build:all": "pnpm build:frontend && pnpm build:backend",
+    "build:frontend": "cd streampoc && pnpm build",
+    "build:backend": "cd backend && pnpm build",
+    "start": "cd backend && pnpm start",
     "lint": "cd streampoc && pnpm lint",
     "preview": "cd streampoc && pnpm preview"
   },

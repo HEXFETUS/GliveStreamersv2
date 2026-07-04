@@ -16,8 +16,15 @@ A real-time live streaming app built with **React + LiveKit** (frontend) and **E
 ```
 streampoc-root/
 ├── package.json              # Root workspace — runs both frontend & backend
-├── streampoc/
-│   ├── package.json          # Frontend (React + Vite)
+├── backend/                  # Express API server
+│   ├── package.json
+│   ├── render.yaml           # Render deployment config
+│   ├── tsconfig.json
+│   ├── .env / .env.example
+│   └── src/index.ts          # API routes: auth, rooms, tokens
+├── streampoc/                # React + Vite frontend
+│   ├── package.json
+│   ├── vercel.json           # Vercel deployment config
 │   ├── vite.config.ts
 │   ├── src/
 │   │   ├── App.tsx           # Router (home / login / dashboard / watch)
@@ -28,9 +35,8 @@ streampoc-root/
 │   │   ├── sound.ts          # Audio playback utility
 │   │   └── soundboard.ts     # Reaction → audio file mapping
 │   └── public/audio/         # Reaction & dance sound effects (.wav / .mp3)
-└── streampoc/backend/
-    ├── package.json          # Backend (Express + LiveKit SDK)
-    └── src/index.ts          # API routes: auth, rooms, tokens
+└── doc/
+    └── README.md             # This file
 ```
 
 ---
@@ -61,16 +67,11 @@ Before deploying, you'll need:
 | **Fullscreen**       | Fullscreen/browser-maximize toggle with mobile support                   |
 | **Demo Auth**        | Built-in demo accounts — no database required to get started             |
 | **Supabase Auth**    | Optional real authentication with Supabase                               |
+| **Responsive UI**    | Works on mobile, tablet, laptop, and desktop                             |
 
 ---
 
 ## Environment Variables
-
-# streampoc — Frontend
-
-This directory contains the **React + Vite** frontend for the Glive Streamer platform.
-
-See the [root README](../README.md) for full deployment and development instructions.
 
 ### Frontend (`VITE_*` — set in Vercel)
 
@@ -81,21 +82,33 @@ See the [root README](../README.md) for full deployment and development instruct
 
 ### Backend (set in Render)
 
-| Variable             | Description                   | Required |
-| -------------------- | ----------------------------- | -------- |
-| `LIVEKIT_URL`        | LiveKit Cloud WebSocket URL   | ✅ Yes   |
-| `LIVEKIT_API_KEY`    | LiveKit API key               | ✅ Yes   |
-| `LIVEKIT_API_SECRET` | LiveKit API secret            | ✅ Yes   |
-| `SUPABASE_URL`       | Supabase project URL          | ❌ No\*  |
-| `SUPABASE_ANON_KEY`  | Supabase anonymous key        | ❌ No\*  |
-| `PORT`               | Backend port (default: 3001)  | ❌ No    |
-| `NODE_ENV`           | `production` or `development` | ❌ No    |
+| Variable             | Description                  | Required |
+| -------------------- | ---------------------------- | -------- |
+| `LIVEKIT_URL`        | LiveKit Cloud WebSocket URL  | ✅ Yes   |
+| `LIVEKIT_API_KEY`    | LiveKit API key              | ✅ Yes   |
+| `LIVEKIT_API_SECRET` | LiveKit API secret           | ✅ Yes   |
+| `CORS_ORIGIN`        | Frontend URL(s) for CORS     | ✅ Yes   |
+| `SUPABASE_URL`       | Supabase project URL         | ❌ No\*  |
+| `SUPABASE_ANON_KEY`  | Supabase anonymous key       | ❌ No\*  |
+| `PORT`               | Backend port (default: 3001) | ❌ No    |
+| `NODE_ENV`           | Set automatically by Render  | ❌ No    |
 
 _\*Leave empty to use demo auth (in-memory users). No Supabase needed to get started._
 
 ---
 
-## Step 1: Deploy the Backend (Render)
+## Step 1: Set Up LiveKit Cloud
+
+1. Go to [LiveKit Cloud](https://cloud.livekit.io/) and create a project.
+2. Go to **Settings → Keys** to find your:
+   - `LIVEKIT_URL` (e.g., `wss://your-project.livekit.cloud`)
+   - `LIVEKIT_API_KEY`
+   - `LIVEKIT_API_SECRET`
+3. Save these values — you'll need them in Steps 2 and 3.
+
+---
+
+## Step 2: Deploy the Backend (Render)
 
 1. Push your code to a **GitHub repository**.
 
@@ -105,16 +118,16 @@ _\*Leave empty to use demo auth (in-memory users). No Supabase needed to get sta
 
 4. Configure the service:
 
-   | Setting            | Value                          |
-   | ------------------ | ------------------------------ |
-   | **Name**           | `glivestreamer-backend`        |
-   | **Region**         | Choose closest to you          |
-   | **Branch**         | `main`                         |
-   | **Runtime**        | `Node`                         |
-   | **Root Directory** | `streampoc/backend`            |
-   | **Build Command**  | `npm install && npm run build` |
-   | **Start Command**  | `npm start`                    |
-   | **Plan**           | Free                           |
+   | Setting            | Value                        |
+   | ------------------ | ---------------------------- |
+   | **Name**           | `glivestreamer-backend`      |
+   | **Region**         | Choose closest to you        |
+   | **Branch**         | `main`                       |
+   | **Runtime**        | `Node`                       |
+   | **Root Directory** | `backend`                    |
+   | **Build Command**  | `pnpm install && pnpm build` |
+   | **Start Command**  | `pnpm start`                 |
+   | **Plan**           | Free                         |
 
 5. Add the **Environment Variables**:
 
@@ -124,6 +137,7 @@ _\*Leave empty to use demo auth (in-memory users). No Supabase needed to get sta
    | `LIVEKIT_URL`        | `wss://your-project.livekit.cloud` (use your LiveKit URL) |
    | `LIVEKIT_API_KEY`    | _(from LiveKit Cloud settings)_                           |
    | `LIVEKIT_API_SECRET` | _(from LiveKit Cloud settings)_                           |
+   | `CORS_ORIGIN`        | `https://your-vercel-app.vercel.app` (set after Step 3)   |
    | `PORT`               | `3001` _(Render will override this automatically)_        |
 
    > **Note:** Leave `SUPABASE_URL` and `SUPABASE_ANON_KEY` empty for demo auth.
@@ -142,7 +156,7 @@ Visit `https://your-app.onrender.com/health` — you should see:
 
 ---
 
-## Step 2: Deploy the Frontend (Vercel)
+## Step 3: Deploy the Frontend (Vercel)
 
 1. Go to [Vercel Dashboard](https://vercel.com/) and click **Add New → Project**.
 
@@ -168,6 +182,19 @@ Visit `https://your-app.onrender.com/health` — you should see:
 
 6. After deployment, Vercel gives you a URL like `https://glivestreamer.vercel.app`.
 
+7. **Go back to Render** and update the `CORS_ORIGIN` environment variable to your Vercel URL (e.g., `https://glivestreamer.vercel.app`). This tells the backend to accept requests from your frontend.
+
+---
+
+## Step 4: Update CORS (Important)
+
+After both deployments are live:
+
+1. Copy your Vercel URL (e.g., `https://glivestreamer.vercel.app`)
+2. Go to **Render Dashboard → Environment** for your backend service
+3. Set `CORS_ORIGIN` to your Vercel URL (for multiple domains, use commas: `https://site1.com,https://site2.com`)
+4. Render will automatically redeploy
+
 ---
 
 ## Demo Accounts
@@ -183,17 +210,6 @@ You can also **sign up** new accounts on the login page — they'll work until t
 
 ---
 
-## LiveKit Cloud Setup
-
-1. Go to [LiveKit Cloud](https://cloud.livekit.io/) and create a project.
-2. Go to **Settings → Keys** to find your:
-   - `LIVEKIT_URL` (e.g., `wss://your-project.livekit.cloud`)
-   - `LIVEKIT_API_KEY`
-   - `LIVEKIT_API_SECRET`
-3. Copy these values into both Render and Vercel environment variables.
-
----
-
 ## Local Development
 
 ### Quick start (both frontend & backend)
@@ -205,19 +221,19 @@ pnpm install
 pnpm dev
 ```
 
-This starts both the backend (port 3001) and frontend (port 5173) concurrently.
+This starts both the backend (port 3001) and frontend (port 5173) concurrently with hot reload.
 
-### 1. Backend only
+### Backend only
 
 ```bash
-cd streampoc/backend
+cd backend
 pnpm install
 cp .env.example .env
-# Edit .env with your LiveKit credentials (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+# Edit .env with your LiveKit credentials
 pnpm dev
 ```
 
-### 2. Frontend only
+### Frontend only
 
 ```bash
 cd streampoc
@@ -228,7 +244,7 @@ pnpm dev
 
 The frontend dev server runs on `http://localhost:5173` and proxies API calls to the backend at `http://localhost:3001` (configured in `vite.config.ts`).
 
-### Network access
+### Network access (testing on mobile/tablet)
 
 To allow other devices on your network to access the dev server:
 
@@ -236,7 +252,30 @@ To allow other devices on your network to access the dev server:
 pnpm dev:host
 ```
 
-This starts both services, with Vite exposed on `0.0.0.0`.
+This starts both services, with Vite exposed on `0.0.0.0`. Access from any device on the same network at `http://YOUR_LOCAL_IP:5173`.
+
+### Production build (test locally)
+
+```bash
+pnpm build:all    # Build both frontend and backend
+pnpm start        # Start the production server (serves API + frontend on port 3001)
+```
+
+---
+
+## Project Scripts
+
+| Command               | Description                                   |
+| --------------------- | --------------------------------------------- |
+| `pnpm dev`            | Dev mode (backend + frontend with HMR)        |
+| `pnpm dev:host`       | Dev mode exposed on network                   |
+| `pnpm build`          | Build frontend only                           |
+| `pnpm build:all`      | Build both frontend and backend               |
+| `pnpm build:frontend` | Build frontend only (alias)                   |
+| `pnpm build:backend`  | Build backend only                            |
+| `pnpm start`          | Production start (single server on port 3001) |
+| `pnpm lint`           | Lint frontend                                 |
+| `pnpm preview`        | Preview frontend build locally                |
 
 ---
 
@@ -255,9 +294,23 @@ If you want real user accounts instead of demo auth:
 
 4. Redeploy the backend on Render.
 
+---
+
+## LiveKit Cloud Setup
+
+1. Go to [LiveKit Cloud](https://cloud.livekit.io/) and create a project.
+2. Go to **Settings → Keys** to find your:
+   - `LIVEKIT_URL` (e.g., `wss://your-project.livekit.cloud`)
+   - `LIVEKIT_API_KEY`
+   - `LIVEKIT_API_SECRET`
+3. Copy these values into both Render and Vercel environment variables.
+
+---
+
 ## Tech Stack
 
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, LiveKit Components React
 - **Backend:** Express.js, LiveKit Server SDK, Supabase JS, tsx (TypeScript runner)
 - **Audio:** HTML5 Audio API with caching
 - **Streaming:** LiveKit Cloud (WebRTC), Data Channel (reactions & dance sync)
+- **Deployment:** Vercel (frontend) + Render (backend)

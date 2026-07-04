@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,6 +11,12 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// In production, serve the built frontend from streampoc/dist
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendDist = path.resolve(__dirname, '../../streampoc/dist');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || '';
@@ -25,7 +33,15 @@ const roomService = new RoomServiceClient(
   process.env.LIVEKIT_API_SECRET || ''
 );
 
-app.use(cors());
+// CORS: allow all origins in dev, restrict in production via CORS_ORIGIN env var
+app.use(cors({
+  origin: isProduction
+    ? process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+      : true
+    : true,
+  credentials: true,
+}));
 app.use(express.json());
 
 // Health check endpoint
@@ -284,11 +300,29 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// ---------- Production: Serve frontend ----------
+if (isProduction) {
+  // Serve static files from the built frontend
+  app.use(express.static(frontendDist));
+
+  // SPA fallback: serve index.html for any non-API route
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes (they should have been caught above)
+    if (req.path.startsWith('/api/') || req.path === '/health') {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+
+  console.log(`Serving frontend from: ${frontendDist}`);
+}
+
 const port = Number(PORT);
 app.listen(port, '0.0.0.0', () => {
   const ifaces = Object.values(os.networkInterfaces()).flat() as os.NetworkInterfaceInfo[];
   const ip = ifaces.find((i) => i.family === 'IPv4' && !i.internal)?.address || 'localhost';
   console.log(`Server running on http://localhost:${port}`);
   console.log(`Network:  http://${ip}:${port}`);
+  console.log(`Mode:     ${isProduction ? 'production' : 'development'}`);
   console.log(`Supabase: ${isSupabaseConfigured ? 'configured' : 'not configured (using demo auth)'}`);
 });

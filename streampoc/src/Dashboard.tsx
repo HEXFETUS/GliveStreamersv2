@@ -18,7 +18,7 @@ import {
 } from "./soundboard";
 import LiveSidePanel from './LiveSidePanel'
 
-const API_BASE = ''
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://glivestreamer-t2otgzur.livekit.cloud'
 
 /* ── reactions array kept for potential reuse ── */
